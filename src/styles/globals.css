@@ -1,0 +1,326 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Light Theme (default) ─────────────────────────────────────────────── */
+:root {
+    --bg-primary: #f8f9fc;
+    --bg-secondary: #f1f4f9;
+    --bg-tertiary: #e8ecf4;
+    --bg-card: #ffffff;
+    --text-primary: #0f0f1a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --border: #dde1eb;
+    --accent: #6366f1;
+    --accent-hover: #4f46e5;
+    --sidebar-bg: #f1f4f9;
+    --shadow: rgba(0, 0, 0, 0.06);
+}
+
+/* ─── Dark Theme ─────────────────────────────────────────────────────────── */
+.dark {
+    --bg-primary: #0f0f1a;
+    --bg-secondary: #13131f;
+    --bg-tertiary: #181825;
+    --bg-card: #1e1e2e;
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --text-muted: #475569;
+    --border: #2a2a3e;
+    --accent: #6366f1;
+    --accent-hover: #818cf8;
+    --sidebar-bg: #13131f;
+    --shadow: rgba(0, 0, 0, 0.4);
+}
+
+/* ─── Base ───────────────────────────────────────────────────────────────── */
+body {
+    font-family: 'Outfit', system-ui, sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+/* ─── Selection ──────────────────────────────────────────────────────────── */
+::selection {
+    background: rgba(99, 102, 241, 0.25);
+    color: var(--text-primary);
+}
+
+/* ─── Utility Classes ────────────────────────────────────────────────────── */
+@layer components {
+    .glass {
+        background: rgba(255, 255, 255, 0.06);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .dark .glass {
+        background: rgba(0, 0, 0, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 1rem;
+        box-shadow: 0 4px 24px var(--shadow);
+    }
+
+    .btn-primary {
+        @apply px-4 py-2 rounded-xl font-medium transition-all duration-200;
+        background: var(--accent);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: var(--accent-hover);
+        box-shadow: 0 0 20px rgba(99, 102, 241, 0.35);
+        transform: translateY(-1px);
+    }
+
+    .btn-ghost {
+        @apply px-4 py-2 rounded-xl font-medium transition-all duration-200;
+        color: var(--text-secondary);
+    }
+
+    .btn-ghost:hover {
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+    }
+
+    .input-base {
+        @apply w-full px-3 py-2 rounded-xl outline-none transition-all duration-200;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border);
+        color: var(--text-primary);
+    }
+
+    .input-base:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+    }
+
+    .input-base::placeholder {
+        color: var(--text-muted);
+    }
+}
+
+/* ─── Drag Region ────────────────────────────────────────────────────────── */
+.drag-region {
+    -webkit-app-region: drag;
+    app-region: drag;
+}
+
+.no-drag {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+}
+
+/* ─── TipTap Editor ──────────────────────────────────────────────────────── */
+.ProseMirror {
+    outline: none;
+    min-height: 100%;
+    color: var(--text-primary);
+    font-family: 'Lora', serif;
+    font-size: 1.05rem;
+    line-height: 1.8;
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+    color: var(--text-muted);
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
+}
+
+.ProseMirror h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 1.5rem 0 0.75rem;
+}
+
+.ProseMirror h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 1.25rem 0 0.5rem;
+}
+
+.ProseMirror h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 1rem 0 0.5rem;
+}
+
+.ProseMirror ul,
+.ProseMirror ol {
+    padding-left: 1.5rem;
+    margin: 0.5rem 0;
+}
+
+.ProseMirror blockquote {
+    border-left: 3px solid var(--accent);
+    padding: 0.5rem 0 0.5rem 1rem;
+    margin: 1rem 0;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.ProseMirror code {
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.875em;
+}
+
+.ProseMirror pre {
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    padding: 1rem;
+    overflow-x: auto;
+    margin: 1rem 0;
+}
+
+.ProseMirror img {
+    max-width: 100%;
+    border-radius: 8px;
+    margin: 1rem 0;
+}
+
+.ProseMirror hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 1.5rem 0;
+}
+
+/* ─── Loading Screen ─────────────────────────────────────────────────────── */
+.loading-screen {
+    position: fixed;
+    inset: 0;
+    background: var(--bg-primary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+/* ─── Soul Diary Table Styles ──────────────────────────── */
+
+/* ─── TipTap Table Fix ──────────────────────────────────────────────── */
+
+.ProseMirror table {
+  border-collapse: collapse !important;
+  width:           100% !important;
+  margin:          1.25rem 0 !important;
+  table-layout:    fixed !important;
+  border:          2px solid var(--border) !important;
+  border-radius:   8px !important;
+  overflow:        hidden !important;
+  display:         table !important;
+}
+
+.ProseMirror table td,
+.ProseMirror table th {
+  border:          1px solid var(--border) !important;
+  padding:         0.6rem 0.75rem !important;
+  min-width:       80px !important;
+  position:        relative !important;
+  vertical-align:  top !important;
+  word-wrap:       break-word !important;
+  color:           var(--text-primary) !important;
+  background:      var(--bg-card) !important;
+}
+
+.ProseMirror table th {
+  background:      var(--bg-tertiary) !important;
+  font-weight:     600 !important;
+  font-size:       0.82rem !important;
+  color:           var(--text-secondary) !important;
+  text-transform:  uppercase !important;
+  letter-spacing:  0.04em !important;
+}
+
+.ProseMirror table tr {
+  border-bottom:   1px solid var(--border) !important;
+}
+
+.ProseMirror table tr:last-child {
+  border-bottom:   none !important;
+}
+
+/* Selected cell highlight */
+.ProseMirror table td.selectedCell,
+.ProseMirror table th.selectedCell {
+  background:      rgba(99,102,241,0.15) !important;
+  outline:         2px solid var(--accent) !important;
+  outline-offset:  -2px !important;
+}
+
+/* Column resize handle */
+.ProseMirror table .column-resize-handle {
+  position:        absolute !important;
+  right:           -2px !important;
+  top:             0 !important;
+  bottom:          0 !important;
+  width:           4px !important;
+  background:      var(--accent) !important;
+  opacity:         0 !important;
+  cursor:          col-resize !important;
+  transition:      opacity 0.15s !important;
+  z-index:         20 !important;
+  pointer-events:  auto !important;
+}
+
+.ProseMirror table td:hover > .column-resize-handle,
+.ProseMirror table th:hover > .column-resize-handle {
+  opacity: 0.5 !important;
+}
+
+.ProseMirror table .column-resize-handle:hover {
+  opacity: 1 !important;
+}
+
+.ProseMirror.resize-cursor {
+  cursor: col-resize !important;
+}
+
+/* Empty paragraph inside cell */
+.ProseMirror table td p,
+.ProseMirror table th p {
+  margin: 0 !important;
+}
+
+/* Table wrapper — prevents overflow */
+.ProseMirror .tableWrapper {
+  overflow-x: auto !important;
+  margin:     1rem 0 !important;
+  border-radius: 8px !important;
+}
