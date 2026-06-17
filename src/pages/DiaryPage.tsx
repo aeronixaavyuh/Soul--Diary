@@ -209,7 +209,6 @@ export default function DiaryPage() {
         setDetectedMood(mood)
         if (currentEntry) {
           await updateEntry(currentEntry.id, {
-            mood,
             moodScore: res.data.score,
           })
         }

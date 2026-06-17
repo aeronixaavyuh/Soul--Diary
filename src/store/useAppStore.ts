@@ -37,6 +37,9 @@ interface AppState {
 
   // Settings
   settings: {
+    securityHash: null
+    recoveryKeyHash: null
+    securityMode: 'password'
     hasPin: boolean
     pinHash: string | null
     autoLock: boolean
@@ -87,6 +90,9 @@ export const useAppStore = create<AppState>()(
 
       // ── Settings ─────────────────────────────────────────────────────────
       settings: {
+        securityHash: null,
+        recoveryKeyHash: null,
+        securityMode: 'password',
         hasPin: false,
         pinHash: null,
         autoLock: false,
@@ -110,7 +116,7 @@ export const useAppStore = create<AppState>()(
           await window.electronAPI?.db.get('SELECT 1')
 
           set({ statusMessage: 'Verifying encryption...' })
-          const initResult = await window.electronAPI?.app.init()
+          const initResult = await (window.electronAPI?.app as any)?.init()
           if (initResult?.success !== true) {
             console.error('App init failed:', initResult?.error)
           }

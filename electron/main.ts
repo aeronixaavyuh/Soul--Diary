@@ -16,7 +16,6 @@ import { encryption } from './services/encryption'
 
 // ── IPC Handlers ──────────────────────────────────────────────────────────────
 import { registerDbHandlers } from './ipc/db.handler'
-import { registerAiHandlers } from './ipc/ai.handler'
 
 import { registerPdfHandlers } from './ipc/pdf.handler'
 
@@ -112,8 +111,6 @@ async function initServices(): Promise<void> {
 
         // 3. Register all IPC handlers
         registerDbHandlers()
-        registerAiHandlers()
-        console.log('[Main] AI handlers registered ✓')
         registerWindowHandlers()
         registerFileHandlers()
         registerAppHandlers()

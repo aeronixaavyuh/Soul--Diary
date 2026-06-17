@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── Light Theme (default) ─────────────────────────────────────────────── */
+/* ─── Light Theme ────────────────────────────────────────────────────────── */
 :root {
     --bg-primary: #f8f9fc;
     --bg-secondary: #f1f4f9;
@@ -69,7 +69,7 @@ body {
     color: var(--text-primary);
 }
 
-/* ─── Utility Classes ────────────────────────────────────────────────────── */
+/* ─── Utility ────────────────────────────────────────────────────────────── */
 @layer components {
     .glass {
         background: rgba(255, 255, 255, 0.06);
@@ -232,95 +232,168 @@ body {
     z-index: 9999;
 }
 
-/* ─── Soul Diary Table Styles ──────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   TABLE STYLES — COMPLETE FIX
+   Problem: CSS variables andar border nahi dikh rahi thi
+   Fix: Solid hex colors use kiye + !important sab jagah
+═══════════════════════════════════════════════════════════════════════════ */
 
-/* ─── TipTap Table Fix ──────────────────────────────────────────────── */
-
-.ProseMirror table {
-  border-collapse: collapse !important;
-  width:           100% !important;
-  margin:          1.25rem 0 !important;
-  table-layout:    fixed !important;
-  border:          2px solid var(--border) !important;
-  border-radius:   8px !important;
-  overflow:        hidden !important;
-  display:         table !important;
+/* Table wrapper */
+.ProseMirror .tableWrapper {
+    overflow-x: auto !important;
+    margin: 1.25rem 0 !important;
+    border-radius: 10px !important;
+    border: 1px solid #dde1eb !important;
 }
 
+.dark .ProseMirror .tableWrapper {
+    border-color: #2a2a3e !important;
+}
+
+/* Table itself */
+.ProseMirror table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    margin: 0 !important;
+    table-layout: fixed !important;
+    display: table !important;
+    font-size: 0.9rem !important;
+}
+
+/* ALL cells — td and th */
 .ProseMirror table td,
 .ProseMirror table th {
-  border:          1px solid var(--border) !important;
-  padding:         0.6rem 0.75rem !important;
-  min-width:       80px !important;
-  position:        relative !important;
-  vertical-align:  top !important;
-  word-wrap:       break-word !important;
-  color:           var(--text-primary) !important;
-  background:      var(--bg-card) !important;
+    border: 1px solid #dde1eb !important;
+    padding: 0.55rem 0.8rem !important;
+    min-width: 80px !important;
+    position: relative !important;
+    vertical-align: top !important;
+    word-wrap: break-word !important;
+    color: #0f0f1a !important;
+    background: #ffffff !important;
 }
 
+/* Dark mode cells */
+.dark .ProseMirror table td,
+.dark .ProseMirror table th {
+    border-color: #2a2a3e !important;
+    color: #e2e8f0 !important;
+    background: #1e1e2e !important;
+}
+
+/* Header cells */
 .ProseMirror table th {
-  background:      var(--bg-tertiary) !important;
-  font-weight:     600 !important;
-  font-size:       0.82rem !important;
-  color:           var(--text-secondary) !important;
-  text-transform:  uppercase !important;
-  letter-spacing:  0.04em !important;
+    background: #e8ecf4 !important;
+    font-weight: 700 !important;
+    font-size: 0.78rem !important;
+    color: #475569 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
 }
 
+.dark .ProseMirror table th {
+    background: #181825 !important;
+    color: #94a3b8 !important;
+}
+
+/* Row borders */
 .ProseMirror table tr {
-  border-bottom:   1px solid var(--border) !important;
+    border-bottom: 1px solid #dde1eb !important;
+}
+
+.dark .ProseMirror table tr {
+    border-bottom-color: #2a2a3e !important;
 }
 
 .ProseMirror table tr:last-child {
-  border-bottom:   none !important;
+    border-bottom: none !important;
 }
 
-/* Selected cell highlight */
+/* ── Hover effect on rows ─────────────────────────────────────────── */
+.ProseMirror table tr:hover td {
+    background: #f1f4f9 !important;
+}
+
+.dark .ProseMirror table tr:hover td {
+    background: #181825 !important;
+}
+
+/* Don't hover header */
+.ProseMirror table tr:first-child:hover th {
+    background: #e8ecf4 !important;
+}
+
+.dark .ProseMirror table tr:first-child:hover th {
+    background: #181825 !important;
+}
+
+/* ── Selected cell ────────────────────────────────────────────────── */
 .ProseMirror table td.selectedCell,
 .ProseMirror table th.selectedCell {
-  background:      rgba(99,102,241,0.15) !important;
-  outline:         2px solid var(--accent) !important;
-  outline-offset:  -2px !important;
+    background: rgba(99, 102, 241, 0.15) !important;
+    outline: 2px solid #6366f1 !important;
+    outline-offset: -2px !important;
 }
 
-/* Column resize handle */
+/* ── Column resize handle ─────────────────────────────────────────── */
 .ProseMirror table .column-resize-handle {
-  position:        absolute !important;
-  right:           -2px !important;
-  top:             0 !important;
-  bottom:          0 !important;
-  width:           4px !important;
-  background:      var(--accent) !important;
-  opacity:         0 !important;
-  cursor:          col-resize !important;
-  transition:      opacity 0.15s !important;
-  z-index:         20 !important;
-  pointer-events:  auto !important;
+    position: absolute !important;
+    right: -2px !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    width: 4px !important;
+    background: #6366f1 !important;
+    opacity: 0 !important;
+    cursor: col-resize !important;
+    transition: opacity 0.15s !important;
+    z-index: 20 !important;
+    pointer-events: auto !important;
 }
 
-.ProseMirror table td:hover > .column-resize-handle,
-.ProseMirror table th:hover > .column-resize-handle {
-  opacity: 0.5 !important;
+.ProseMirror table td:hover .column-resize-handle,
+.ProseMirror table th:hover .column-resize-handle {
+    opacity: 0.5 !important;
 }
 
 .ProseMirror table .column-resize-handle:hover {
-  opacity: 1 !important;
+    opacity: 1 !important;
 }
 
 .ProseMirror.resize-cursor {
-  cursor: col-resize !important;
+    cursor: col-resize !important;
 }
 
-/* Empty paragraph inside cell */
+/* ── Paragraph inside cell ────────────────────────────────────────── */
 .ProseMirror table td p,
 .ProseMirror table th p {
-  margin: 0 !important;
+    margin: 0 !important;
 }
 
-/* Table wrapper — prevents overflow */
-.ProseMirror .tableWrapper {
-  overflow-x: auto !important;
-  margin:     1rem 0 !important;
-  border-radius: 8px !important;
+/* ── Cell with custom background (from toolbar) ───────────────────── */
+.ProseMirror table td[data-bg-color],
+.ProseMirror table th[data-bg-color] {
+    background: attr(data-bg-color) !important;
+}
+
+/* ── Image float wrap support ─────────────────────────── */
+.ProseMirror img[style*="float: left"],
+.ProseMirror img[style*="float:left"] {
+    float: left;
+    margin-right: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.ProseMirror img[style*="float: right"],
+.ProseMirror img[style*="float:right"] {
+    float: right;
+    margin-left: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Clearfix after block/center images */
+.ProseMirror .img-clearfix {
+    clear: both;
+    display: block;
+    line-height: 0;
+    height: 0;
 }

@@ -8,7 +8,7 @@ import {
   Download, Upload, Trash2, FolderOpen,
   Check, X, Loader2, AlertCircle,
   ChevronRight, Shield, Zap, Info,
-  RefreshCw, HardDrive, Cpu,
+  RefreshCw, HardDrive, Cpu,Copy, KeyRound,
 } from 'lucide-react'
 
 // ─── Section IDs ──────────────────────────────────────────────────────────────
@@ -17,7 +17,6 @@ type SectionId =
   | 'appearance'
   | 'security'
   | 'editor'
-  | 'ai'
   | 'storage'
   | 'backup'
   | 'about'
@@ -26,7 +25,6 @@ const SECTIONS: { id: SectionId; label: string; icon: React.ReactNode; desc: str
   { id: 'appearance', label: 'Appearance', icon: <Palette size={16} />, desc: 'Theme, colors, animations' },
   { id: 'security', label: 'Security', icon: <Shield size={16} />, desc: 'PIN lock, encryption' },
   { id: 'editor', label: 'Editor', icon: <Type size={16} />, desc: 'Font, size, writing preferences' },
-  { id: 'ai', label: 'AI Settings', icon: <Brain size={16} />, desc: 'Ollama model, AI features' },
   { id: 'storage', label: 'Storage', icon: <Database size={16} />, desc: 'Database location, data path' },
   { id: 'backup', label: 'Backup', icon: <Download size={16} />, desc: 'Export, import, restore data' },
   { id: 'about', label: 'About', icon: <Info size={16} />, desc: 'App version, credits' },
@@ -156,7 +154,6 @@ export default function SettingsPage() {
         )}
         {activeSection === 'security' && <SecuritySection settings={settings} updateSettings={updateSettings} />}
         {activeSection === 'editor' && <EditorSection settings={settings} updateSettings={updateSettings} />}
-        {activeSection === 'ai' && <AISection />}
         {activeSection === 'storage' && <StorageSection />}
         {activeSection === 'backup' && <BackupSection />}
         {activeSection === 'about' && <AboutSection />}
@@ -410,124 +407,172 @@ function AppearanceSection({ theme, setTheme, animationsEnabled, toggleAnimation
 
 // ─── Security Section ─────────────────────────────────────────────────────────
 
+// ─── Shared hash function (same as LockScreen) ────────────────────────────────
+
+async function hashValue(value: string): Promise<string> {
+  try {
+    const encoder = new TextEncoder()
+    const data = encoder.encode(value + 'soul-diary-salt-v2')
+    const hash = await crypto.subtle.digest('SHA-256', data)
+    const arr = Array.from(new Uint8Array(hash))
+    return arr.map(b => b.toString(16).padStart(2, '0')).join('')
+  } catch {
+    return btoa(value + 'soul-diary-salt-v2')
+  }
+}
+
+function generateRecoveryKey(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let key = ''
+  for (let i = 0; i < 24; i++) {
+    if (i > 0 && i % 6 === 0) key += '-'
+    key += chars[Math.floor(Math.random() * chars.length)]
+  }
+  return key
+}
+
+// ─── Security Section ─────────────────────────────────────────────────────────
+
 function SecuritySection({ settings, updateSettings }: any) {
-  const [showSetPin, setShowSetPin] = useState(false)
-  const [showRemovePin, setShowRemovePin] = useState(false)
-  const [pin, setPin] = useState(['', '', '', ''])
-  const [confirmPin, setConfirmPin] = useState(['', '', '', ''])
-  const [currentPin, setCurrentPin] = useState(['', '', '', ''])
-  const [showPin, setShowPin] = useState(false)
+
+  const [secMode, setSecMode] = useState<'password' | 'pin'>('password')
+  const [showSetup, setShowSetup] = useState(false)
+  const [showRemove, setShowRemove] = useState(false)
+  const [newValue, setNewValue] = useState('')
+  const [confirmValue, setConfirmValue] = useState('')
+  const [currentValue, setCurrentValue] = useState('')
+  const [showVal, setShowVal] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+  const [recoveryKey, setRecoveryKey] = useState('')
+  const [showRecovery, setShowRecovery] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [message, setMessage] = useState<{
+    text: string; type: 'success' | 'error'
+  } | null>(null)
 
   const showMsg = (text: string, type: 'success' | 'error') => {
     setMessage({ text, type })
-    setTimeout(() => setMessage(null), 3000)
+    setTimeout(() => setMessage(null), 5000)
   }
 
-  const handleSetPin = async () => {
-    const pinStr = pin.join('')
-    const confirmStr = confirmPin.join('')
+  const resetForm = () => {
+    setNewValue(''); setConfirmValue(''); setCurrentValue('')
+    setShowSetup(false); setShowRemove(false)
+    setShowRecovery(false); setRecoveryKey('')
+  }
 
-    if (pinStr.length !== 4) return showMsg('PIN must be exactly 4 digits', 'error')
-    if (pinStr !== confirmStr) return showMsg('PINs do not match', 'error')
+  // ── Password strength ──────────────────────────────────────────────────────
+  const getStrength = (v: string) => {
+    if (!v) return { label: '', color: 'transparent', w: 0 }
+    if (v.length < 4) return { label: 'Too short', color: '#ef4444', w: 15 }
+    if (v.length < 6) return { label: 'Weak', color: '#f97316', w: 35 }
+    if (v.length < 8) return { label: 'Fair', color: '#eab308', w: 55 }
+    if (v.length < 12) return { label: 'Good', color: '#22c55e', w: 75 }
+    return { label: 'Strong', color: '#16a34a', w: 100 }
+  }
+  const strength = getStrength(newValue)
+
+  // ── Set / Change security ──────────────────────────────────────────────────
+  const handleSet = async () => {
+    if (!newValue.trim()) return showMsg('Value cannot be empty.', 'error')
+    if (newValue.length < 4) return showMsg('Minimum 4 characters required.', 'error')
+    if (newValue !== confirmValue) return showMsg(
+      secMode === 'password' ? 'Passwords do not match.' : 'PINs do not match.', 'error'
+    )
+    if (secMode === 'pin' && !/^\d+$/.test(newValue))
+      return showMsg('PIN must be digits only.', 'error')
 
     setLoading(true)
     try {
-      const res = await window.electronAPI.db.run(
-        `INSERT INTO app_settings (key, value, updated_at) VALUES ('hasPin','true',datetime('now'))
-         ON CONFLICT(key) DO UPDATE SET value='true', updated_at=datetime('now')`
+      const hashed = await hashValue(newValue)
+      const rKey = generateRecoveryKey()
+      const rHashed = await hashValue(rKey)
+
+      // Try electronAPI
+      try { await window.electronAPI.pin.set(newValue) } catch { /* ignore */ }
+
+      updateSettings({
+        hasPin: true,
+        securityHash: hashed,
+        pinHash: btoa(newValue),   // legacy fallback
+        recoveryKeyHash: rHashed,
+        securityMode: secMode,
+      })
+
+      setRecoveryKey(rKey)
+      setShowSetup(false)
+      setShowRecovery(true)
+      setNewValue('')
+      setConfirmValue('')
+      showMsg(
+        settings.hasPin ? 'Security updated successfully!' : 'Security set successfully!',
+        'success'
       )
-      await (window.electronAPI as any).invokeIpc?.('pin:set', pinStr)
-
-      updateSettings({ hasPin: true, pinHash: btoa(pinStr) })
-      setPin(['', '', '', ''])
-      setConfirmPin(['', '', '', ''])
-      setShowSetPin(false)
-      showMsg('PIN set successfully! App will lock on next launch.', 'success')
-    } catch (err) {
-      showMsg('Failed to set PIN. Please try again.', 'error')
+    } catch {
+      showMsg('Failed to set security. Try again.', 'error')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleRemovePin = async () => {
-    const current = currentPin.join('')
-    if (current.length !== 4) return showMsg('Enter your current PIN', 'error')
+  // ── Remove security ────────────────────────────────────────────────────────
+  const handleRemove = async () => {
+    if (!currentValue.trim()) return showMsg('Enter your current password or PIN.', 'error')
 
     setLoading(true)
     try {
-      if (btoa(current) !== settings.pinHash) {
-        return showMsg('Wrong PIN', 'error')
+      const hashed = await hashValue(currentValue)
+      const stored = settings.securityHash ?? ''
+      let matched = hashed === stored
+
+      // Legacy fallback
+      if (!matched && settings.pinHash) {
+        try { matched = currentValue === atob(settings.pinHash) } catch { /* ignore */ }
       }
-      updateSettings({ hasPin: false, pinHash: null })
-      setCurrentPin(['', '', '', ''])
-      setShowRemovePin(false)
-      showMsg('PIN removed. App is now unlocked.', 'success')
+
+      // electronAPI fallback
+      if (!matched) {
+        try {
+          const res = await window.electronAPI.pin.verify(currentValue)
+          matched = res?.success === true
+        } catch { /* ignore */ }
+      }
+
+      if (matched) {
+        try { await window.electronAPI.pin.remove() } catch { /* ignore */ }
+        updateSettings({
+          hasPin: false,
+          securityHash: null,
+          pinHash: null,
+          recoveryKeyHash: null,
+          securityMode: 'password',
+        })
+        showMsg('Security removed. App is now unlocked.', 'success')
+        resetForm()
+      } else {
+        showMsg('Wrong password/PIN. Try again.', 'error')
+      }
     } catch {
-      showMsg('Failed to remove PIN.', 'error')
+      showMsg('Error removing security. Try again.', 'error')
     } finally {
       setLoading(false)
     }
   }
 
-  const PinInput = ({
-    value, onChange
-  }: {
-    value: string[]; onChange: (v: string[]) => void
-  }) => (
-    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-      {value.map((digit, i) => (
-        <input
-          key={i}
-          type={showPin ? 'text' : 'password'}
-          inputMode="numeric"
-          maxLength={1}
-          value={digit}
-          onChange={e => {
-            if (!/^\d*$/.test(e.target.value)) return
-            const next = [...value]
-            next[i] = e.target.value.slice(-1)
-            onChange(next)
-            if (e.target.value && i < 3) {
-              const inputs = document.querySelectorAll<HTMLInputElement>('.pin-input-' + (i + 1))
-              inputs[0]?.focus()
-            }
-          }}
-          onKeyDown={e => {
-            if (e.key === 'Backspace' && !value[i] && i > 0) {
-              const inputs = document.querySelectorAll<HTMLInputElement>('.pin-input-' + (i - 1))
-              inputs[0]?.focus()
-            }
-          }}
-          className={`selectable pin-input-${i}`}
-          style={{
-            width: '44px',
-            height: '48px',
-            textAlign: 'center',
-            fontSize: '1.25rem',
-            fontWeight: 700,
-            borderRadius: '10px',
-            border: `2px solid ${digit ? 'var(--accent)' : 'var(--border)'}`,
-            background: 'var(--bg-tertiary)',
-            color: 'var(--text-primary)',
-            outline: 'none',
-            transition: 'border-color 0.15s',
-          }}
-        />
-      ))}
-    </div>
-  )
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(recoveryKey)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   return (
     <div>
       <SectionHeader
         title="Security"
-        desc="Protect your diary with PIN lock and encryption."
+        desc="Protect your diary with a password or PIN."
       />
 
-      {/* Message */}
+      {/* ── Message ────────────────────────────────────────────────────── */}
       {message && (
         <div style={{
           display: 'flex',
@@ -542,127 +587,540 @@ function SecuritySection({ settings, updateSettings }: any) {
           color: message.type === 'success' ? '#22c55e' : '#ef4444',
           fontSize: '0.82rem',
           marginBottom: '1rem',
+          animation: 'fadeIn 0.2s ease',
         }}>
-          {message.type === 'success' ? <Check size={14} /> : <AlertCircle size={14} />}
+          {message.type === 'success'
+            ? <Check size={14} /> : <AlertCircle size={14} />}
           {message.text}
         </div>
       )}
 
-      <GroupLabel label="PIN Lock" />
-
-      <SettingRow
-        label="PIN Protection"
-        desc={settings.hasPin
-          ? 'App is protected with a 4-digit PIN'
-          : 'No PIN set — app opens without a password'}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      {/* ── Status Card ────────────────────────────────────────────────── */}
+      <div style={{
+        padding: '1.25rem',
+        borderRadius: '14px',
+        background: settings.hasPin
+          ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.04)',
+        border: `1px solid ${settings.hasPin
+          ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.15)'}`,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '1rem',
+        marginBottom: '1rem',
+      }}>
+        <div style={{
+          width: '48px',
+          height: '48px',
+          borderRadius: '14px',
+          background: settings.hasPin
+            ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.1)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}>
           {settings.hasPin
-            ? <Lock size={14} style={{ color: '#22c55e' }} />
-            : <Unlock size={14} style={{ color: 'var(--text-muted)' }} />
-          }
-          <span style={{
-            fontSize: '0.78rem',
-            color: settings.hasPin ? '#22c55e' : 'var(--text-muted)',
-            fontWeight: 500,
-          }}>
-            {settings.hasPin ? 'Protected' : 'Unprotected'}
-          </span>
+            ? <Lock size={22} style={{ color: '#22c55e' }} />
+            : <Unlock size={22} style={{ color: '#ef4444' }} />}
         </div>
-      </SettingRow>
+        <div style={{ flex: 1 }}>
+          <div style={{
+            fontSize: '0.9rem',
+            fontWeight: 600,
+            color: settings.hasPin ? '#22c55e' : '#ef4444',
+            marginBottom: '2px',
+          }}>
+            {settings.hasPin ? '🔒 App is Protected' : '🔓 No Protection Set'}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+            {settings.hasPin
+              ? `${settings.securityMode === 'pin' ? 'PIN' : 'Password'} lock active. App locks on close.`
+              : 'Anyone can open your diary without a password.'}
+          </div>
+        </div>
+      </div>
 
-      {/* Set PIN */}
-      {!settings.hasPin && (
-        <div style={{ marginBottom: '0.6rem' }}>
+      {/* ── Recovery Key Panel (shown after setting security) ──────────── */}
+      {showRecovery && recoveryKey && (
+        <div style={{
+          padding: '1.25rem',
+          borderRadius: '14px',
+          background: 'rgba(234,179,8,0.08)',
+          border: '1px solid rgba(234,179,8,0.35)',
+          marginBottom: '1rem',
+          animation: 'fadeIn 0.3s ease',
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            marginBottom: '0.75rem',
+          }}>
+            <KeyRound size={16} style={{ color: '#eab308' }} />
+            <span style={{
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              color: '#eab308',
+            }}>
+              Save Your Recovery Key — Shown Only Once!
+            </span>
+          </div>
+
+          <div style={{
+            fontFamily: 'monospace',
+            fontSize: '1rem',
+            fontWeight: 700,
+            color: 'var(--text-primary)',
+            letterSpacing: '0.1em',
+            padding: '0.75rem',
+            background: 'var(--bg-card)',
+            borderRadius: '10px',
+            border: '1px solid var(--border)',
+            textAlign: 'center',
+            marginBottom: '0.75rem',
+            userSelect: 'all',
+          }}>
+            {recoveryKey}
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <button
+              onClick={handleCopy}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.4rem 0.875rem',
+                borderRadius: '8px',
+                border: '1px solid rgba(234,179,8,0.4)',
+                background: copied ? 'rgba(34,197,94,0.1)' : 'transparent',
+                color: copied ? '#22c55e' : '#eab308',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                transition: 'all 0.2s',
+              }}
+            >
+              {copied ? <Check size={12} /> : <Copy size={12} />}
+              {copied ? 'Copied!' : 'Copy Key'}
+            </button>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+              ⚠️ If you lose this key and forget your password, your data cannot be recovered.
+            </span>
+          </div>
+
           <button
-            onClick={() => setShowSetPin(v => !v)}
+            onClick={() => { setShowRecovery(false); setRecoveryKey('') }}
+            style={{
+              marginTop: '0.75rem',
+              width: '100%',
+              padding: '0.45rem',
+              borderRadius: '8px',
+              border: '1px solid rgba(234,179,8,0.3)',
+              background: 'transparent',
+              color: '#d97706',
+              fontSize: '0.78rem',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            ✓ I've saved my recovery key
+          </button>
+        </div>
+      )}
+
+      {/* ── Mode Selector ─────────────────────────────────────────────── */}
+      <GroupLabel label="Security Type" />
+
+      <div style={{
+        display: 'flex',
+        background: 'var(--bg-tertiary)',
+        borderRadius: '12px',
+        padding: '4px',
+        gap: '4px',
+        marginBottom: '0.75rem',
+      }}>
+        {([
+          { mode: 'password', icon: '🔑', label: 'Password', desc: 'Any text/symbols' },
+          { mode: 'pin', icon: '🔢', label: 'PIN', desc: 'Digits only' },
+        ] as const).map(m => (
+          <button
+            key={m.mode}
+            onClick={() => { setSecMode(m.mode); setNewValue(''); setConfirmValue('') }}
+            style={{
+              flex: 1,
+              padding: '0.6rem 0.75rem',
+              borderRadius: '9px',
+              border: 'none',
+              background: secMode === m.mode ? 'var(--bg-card)' : 'transparent',
+              color: secMode === m.mode ? 'var(--accent)' : 'var(--text-muted)',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '2px',
+              boxShadow: secMode === m.mode
+                ? '0 1px 6px rgba(0,0,0,0.12)' : 'none',
+              transition: 'all 0.2s',
+            }}
+          >
+            <span style={{ fontSize: '1.1rem' }}>{m.icon}</span>
+            <span style={{
+              fontSize: '0.78rem',
+              fontWeight: secMode === m.mode ? 700 : 400,
+            }}>
+              {m.label}
+            </span>
+            <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>
+              {m.desc}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── Set / Change Button ───────────────────────────────────────── */}
+      {!showRemove && (
+        <button
+          onClick={() => { setShowSetup(v => !v); setShowRecovery(false) }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.65rem 1.25rem',
+            borderRadius: '10px',
+            border: '1px solid var(--accent)',
+            background: showSetup
+              ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.08)',
+            color: 'var(--accent)',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            transition: 'all 0.15s',
+            marginBottom: '0.5rem',
+            width: '100%',
+          }}
+        >
+          {settings.hasPin ? <RefreshCw size={14} /> : <Lock size={14} />}
+          {settings.hasPin
+            ? `Change ${secMode === 'password' ? 'Password' : 'PIN'}`
+            : `Set ${secMode === 'password' ? 'Password' : 'PIN'}`}
+          <ChevronRight
+            size={14}
+            style={{
+              marginLeft: 'auto',
+              transform: showSetup ? 'rotate(90deg)' : 'rotate(0deg)',
+              transition: 'transform 0.2s',
+            }}
+          />
+        </button>
+      )}
+
+      {/* ── Setup Form ────────────────────────────────────────────────── */}
+      {showSetup && (
+        <div style={{
+          padding: '1.25rem',
+          borderRadius: '12px',
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border)',
+          marginBottom: '0.75rem',
+          animation: 'slideDown 0.2s ease',
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+
+            {/* New value */}
+            <div>
+              <div style={{
+                fontSize: '0.72rem',
+                color: 'var(--text-muted)',
+                marginBottom: '0.3rem',
+                fontWeight: 500,
+              }}>
+                {secMode === 'password'
+                  ? 'New Password (any length)'
+                  : 'New PIN (digits only, any length)'}
+              </div>
+              <div style={{ position: 'relative' }}>
+                <input
+                  autoFocus
+                  type={showVal ? 'text' : 'password'}
+                  inputMode={secMode === 'pin' ? 'numeric' : 'text'}
+                  value={newValue}
+                  onChange={e => {
+                    const v = e.target.value
+                    if (secMode === 'pin' && !/^\d*$/.test(v)) return
+                    setNewValue(v)
+                  }}
+                  placeholder={secMode === 'password' ? 'Enter password...' : 'Enter PIN digits...'}
+                  className="selectable"
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 2.5rem 0.55rem 0.85rem',
+                    borderRadius: '9px',
+                    border: `1px solid ${newValue ? 'var(--accent)' : 'var(--border)'}`,
+                    background: 'var(--bg-tertiary)',
+                    color: 'var(--text-primary)',
+                    fontSize: secMode === 'pin' ? '1.1rem' : '0.875rem',
+                    letterSpacing: secMode === 'pin' ? '0.2em' : 'normal',
+                    fontFamily: secMode === 'pin' ? 'monospace' : 'inherit',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <button
+                  onClick={() => setShowVal(v => !v)}
+                  style={{
+                    position: 'absolute', right: '8px', top: '50%',
+                    transform: 'translateY(-50%)', background: 'none',
+                    border: 'none', cursor: 'pointer',
+                    color: 'var(--text-muted)', display: 'flex',
+                  }}
+                >
+                  {showVal ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </div>
+
+              {/* Strength bar (password only) */}
+              {secMode === 'password' && newValue && (
+                <div style={{ marginTop: '5px' }}>
+                  <div style={{
+                    height: '3px', borderRadius: '2px',
+                    background: 'var(--bg-tertiary)', overflow: 'hidden',
+                  }}>
+                    <div style={{
+                      height: '100%', width: `${strength.w}%`,
+                      background: strength.color, transition: 'all 0.3s',
+                    }} />
+                  </div>
+                  <div style={{
+                    fontSize: '0.63rem', color: strength.color,
+                    marginTop: '3px', fontWeight: 500,
+                  }}>
+                    {strength.label}
+                  </div>
+                </div>
+              )}
+
+              {/* PIN progress dots */}
+              {secMode === 'pin' && newValue.length > 0 && (
+                <div style={{ display: 'flex', gap: '3px', marginTop: '6px', flexWrap: 'wrap' }}>
+                  {Array.from({ length: Math.min(newValue.length, 20) }, (_, i) => (
+                    <div key={i} style={{
+                      width: '7px', height: '7px',
+                      borderRadius: '50%', background: 'var(--accent)',
+                    }} />
+                  ))}
+                  {newValue.length > 20 && (
+                    <span style={{ fontSize: '0.6rem', color: 'var(--accent)', alignSelf: 'center' }}>
+                      +{newValue.length - 20} more
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Confirm */}
+            <div>
+              <div style={{
+                fontSize: '0.72rem', color: 'var(--text-muted)',
+                marginBottom: '0.3rem', fontWeight: 500,
+              }}>
+                Confirm {secMode === 'password' ? 'Password' : 'PIN'}
+              </div>
+              <input
+                type={showVal ? 'text' : 'password'}
+                inputMode={secMode === 'pin' ? 'numeric' : 'text'}
+                value={confirmValue}
+                onChange={e => {
+                  const v = e.target.value
+                  if (secMode === 'pin' && !/^\d*$/.test(v)) return
+                  setConfirmValue(v)
+                }}
+                onKeyDown={e => e.key === 'Enter' && handleSet()}
+                placeholder={
+                  secMode === 'password' ? 'Re-enter password...' : 'Re-enter PIN...'
+                }
+                className="selectable"
+                style={{
+                  width: '100%',
+                  padding: '0.55rem 0.85rem',
+                  borderRadius: '9px',
+                  border: `1px solid ${confirmValue && confirmValue !== newValue ? '#ef4444'
+                      : confirmValue && confirmValue === newValue ? '#22c55e'
+                        : 'var(--border)'}`,
+                  background: 'var(--bg-tertiary)',
+                  color: 'var(--text-primary)',
+                  fontSize: secMode === 'pin' ? '1.1rem' : '0.875rem',
+                  letterSpacing: secMode === 'pin' ? '0.2em' : 'normal',
+                  fontFamily: secMode === 'pin' ? 'monospace' : 'inherit',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+              {confirmValue && confirmValue !== newValue && (
+                <div style={{ fontSize: '0.63rem', color: '#ef4444', marginTop: '3px' }}>
+                  {secMode === 'password' ? 'Passwords' : 'PINs'} do not match
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+            <button
+              onClick={handleSet}
+              disabled={loading}
+              style={{
+                flex: 1,
+                padding: '0.55rem',
+                borderRadius: '9px',
+                border: 'none',
+                background: 'linear-gradient(135deg, #6366f1, #a78bfa)',
+                color: 'white',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                cursor: loading ? 'wait' : 'pointer',
+                fontFamily: 'inherit',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.4rem',
+                opacity: loading ? 0.7 : 1,
+                boxShadow: '0 2px 10px rgba(99,102,241,0.3)',
+              }}
+            >
+              {loading
+                ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                : <Shield size={14} />}
+              {settings.hasPin ? 'Update' : 'Set'}{' '}
+              {secMode === 'password' ? 'Password' : 'PIN'}
+            </button>
+            <button
+              onClick={resetForm}
+              style={{
+                padding: '0.55rem 0.85rem',
+                borderRadius: '9px',
+                border: '1px solid var(--border)',
+                background: 'transparent',
+                color: 'var(--text-muted)',
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Remove Security ──────────────────────────────────────────── */}
+      {settings.hasPin && !showSetup && (
+        <div>
+          <button
+            onClick={() => setShowRemove(v => !v)}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem',
-              padding: '0.6rem 1.25rem',
+              padding: '0.65rem 1.25rem',
               borderRadius: '10px',
-              border: '1px solid var(--accent)',
-              background: 'rgba(99,102,241,0.08)',
-              color: 'var(--accent)',
+              border: '1px solid rgba(239,68,68,0.35)',
+              background: showRemove
+                ? 'rgba(239,68,68,0.1)' : 'rgba(239,68,68,0.05)',
+              color: '#ef4444',
               fontSize: '0.85rem',
               fontWeight: 600,
               cursor: 'pointer',
               fontFamily: 'inherit',
+              width: '100%',
               transition: 'all 0.15s',
             }}
           >
-            <Lock size={14} />
-            Set PIN Lock
+            <Unlock size={14} />
+            Remove Security Lock
             <ChevronRight
               size={14}
               style={{
-                transform: showSetPin ? 'rotate(90deg)' : 'rotate(0deg)',
+                marginLeft: 'auto',
+                transform: showRemove ? 'rotate(90deg)' : 'rotate(0deg)',
                 transition: 'transform 0.2s',
               }}
             />
           </button>
 
-          {showSetPin && (
+          {showRemove && (
             <div style={{
-              marginTop: '0.75rem',
+              marginTop: '0.5rem',
               padding: '1rem',
               borderRadius: '12px',
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border)',
+              background: 'rgba(239,68,68,0.04)',
+              border: '1px solid rgba(239,68,68,0.2)',
+              animation: 'slideDown 0.2s ease',
             }}>
-              {/* Show/hide toggle */}
               <div style={{
-                display: 'flex',
-                justifyContent: 'flex-end',
-                marginBottom: '0.5rem',
+                fontSize: '0.72rem',
+                color: 'var(--text-muted)',
+                marginBottom: '0.4rem',
               }}>
-                <button
-                  onClick={() => setShowPin(v => !v)}
+                Enter your current password or PIN to confirm:
+              </div>
+
+              <div style={{ position: 'relative', marginBottom: '0.75rem' }}>
+                <input
+                  autoFocus
+                  type={showVal ? 'text' : 'password'}
+                  inputMode={secMode === 'pin' ? 'numeric' : 'text'}
+                  value={currentValue}
+                  onChange={e => {
+                    const v = e.target.value
+                    if (secMode === 'pin' && !/^\d*$/.test(v)) return
+                    setCurrentValue(v)
+                  }}
+                  onKeyDown={e => e.key === 'Enter' && handleRemove()}
+                  placeholder="Enter current password or PIN..."
+                  className="selectable"
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: 'var(--text-muted)',
-                    fontSize: '0.75rem',
+                    width: '100%',
+                    padding: '0.55rem 2.5rem 0.55rem 0.85rem',
+                    borderRadius: '9px',
+                    border: '1px solid rgba(239,68,68,0.35)',
+                    background: 'var(--bg-tertiary)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.875rem',
                     fontFamily: 'inherit',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <button
+                  onClick={() => setShowVal(v => !v)}
+                  style={{
+                    position: 'absolute', right: '8px', top: '50%',
+                    transform: 'translateY(-50%)', background: 'none',
+                    border: 'none', cursor: 'pointer',
+                    color: 'var(--text-muted)', display: 'flex',
                   }}
                 >
-                  {showPin ? <EyeOff size={13} /> : <Eye size={13} />}
-                  {showPin ? 'Hide' : 'Show'} PIN
+                  {showVal ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
-              </div>
-
-              <div style={{ marginBottom: '0.75rem' }}>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                  Enter new 4-digit PIN:
-                </div>
-                <PinInput value={pin} onChange={setPin} />
-              </div>
-
-              <div style={{ marginBottom: '0.75rem' }}>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                  Confirm PIN:
-                </div>
-                <PinInput value={confirmPin} onChange={setConfirmPin} />
               </div>
 
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button
-                  onClick={handleSetPin}
-                  disabled={loading || pin.join('').length !== 4 || confirmPin.join('').length !== 4}
+                  onClick={handleRemove}
+                  disabled={loading}
                   style={{
-                    padding: '0.45rem 1.25rem',
-                    borderRadius: '8px',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '9px',
                     border: 'none',
-                    background: 'var(--accent)',
+                    background: '#ef4444',
                     color: 'white',
                     fontSize: '0.82rem',
                     fontWeight: 600,
-                    cursor: 'pointer',
+                    cursor: loading ? 'wait' : 'pointer',
                     fontFamily: 'inherit',
                     display: 'flex',
                     alignItems: 'center',
@@ -670,14 +1128,16 @@ function SecuritySection({ settings, updateSettings }: any) {
                     opacity: loading ? 0.7 : 1,
                   }}
                 >
-                  {loading && <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />}
-                  Set PIN
+                  {loading
+                    ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                    : <Unlock size={13} />}
+                  Remove Lock
                 </button>
                 <button
-                  onClick={() => { setShowSetPin(false); setPin(['', '', '', '']); setConfirmPin(['', '', '', '']) }}
+                  onClick={resetForm}
                   style={{
-                    padding: '0.45rem 0.75rem',
-                    borderRadius: '8px',
+                    padding: '0.5rem 0.85rem',
+                    borderRadius: '9px',
                     border: '1px solid var(--border)',
                     background: 'transparent',
                     color: 'var(--text-muted)',
@@ -694,102 +1154,20 @@ function SecuritySection({ settings, updateSettings }: any) {
         </div>
       )}
 
-      {/* Remove PIN */}
-      {settings.hasPin && (
-        <div style={{ marginBottom: '0.6rem' }}>
-          <button
-            onClick={() => setShowRemovePin(v => !v)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.6rem 1.25rem',
-              borderRadius: '10px',
-              border: '1px solid rgba(239,68,68,0.35)',
-              background: 'rgba(239,68,68,0.06)',
-              color: '#ef4444',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            <Unlock size={14} />
-            Remove PIN Lock
-          </button>
-
-          {showRemovePin && (
-            <div style={{
-              marginTop: '0.75rem',
-              padding: '1rem',
-              borderRadius: '12px',
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border)',
-            }}>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                Enter current PIN to confirm:
-              </div>
-              <PinInput value={currentPin} onChange={setCurrentPin} />
-
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
-                <button
-                  onClick={handleRemovePin}
-                  disabled={loading || currentPin.join('').length !== 4}
-                  style={{
-                    padding: '0.45rem 1.25rem',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: '#ef4444',
-                    color: 'white',
-                    fontSize: '0.82rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                  }}
-                >
-                  {loading && <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />}
-                  Remove PIN
-                </button>
-                <button
-                  onClick={() => { setShowRemovePin(false); setCurrentPin(['', '', '', '']) }}
-                  style={{
-                    padding: '0.45rem 0.75rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border)',
-                    background: 'transparent',
-                    color: 'var(--text-muted)',
-                    fontSize: '0.82rem',
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
+      {/* ── Auto Lock ─────────────────────────────────────────────────── */}
       <GroupLabel label="Auto-Lock" />
 
-      <SettingRow
-        label="Auto-Lock"
-        desc="Automatically lock the app after inactivity."
-      >
+      <SettingRow label="Auto-Lock" desc="Automatically lock after inactivity.">
         <Toggle
-          checked={settings.autoLock}
+          checked={settings.autoLock ?? false}
           onChange={() => updateSettings({ autoLock: !settings.autoLock })}
         />
       </SettingRow>
 
       {settings.autoLock && (
-        <SettingRow label="Lock after" desc="Minutes of inactivity before locking.">
+        <SettingRow label="Lock After" desc="Minutes of inactivity.">
           <select
-            value={settings.autoLockMinutes}
+            value={settings.autoLockMinutes ?? 5}
             onChange={e => updateSettings({ autoLockMinutes: Number(e.target.value) })}
             style={{
               padding: '0.35rem 0.6rem',
@@ -813,30 +1191,53 @@ function SecuritySection({ settings, updateSettings }: any) {
         </SettingRow>
       )}
 
+      {/* ── Encryption badge ──────────────────────────────────────────── */}
       <GroupLabel label="Encryption" />
 
       <div style={{
-        padding: '0.875rem 1rem',
+        padding: '1rem',
         borderRadius: '12px',
         background: 'rgba(34,197,94,0.06)',
         border: '1px solid rgba(34,197,94,0.2)',
-        marginBottom: '0.6rem',
         display: 'flex',
-        alignItems: 'flex-start',
         gap: '0.75rem',
+        alignItems: 'flex-start',
       }}>
         <Shield size={18} style={{ color: '#22c55e', flexShrink: 0, marginTop: '1px' }} />
         <div>
-          <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#22c55e', marginBottom: '0.25rem' }}>
+          <div style={{
+            fontSize: '0.875rem',
+            fontWeight: 600,
+            color: '#22c55e',
+            marginBottom: '0.25rem',
+          }}>
             AES-256 Encryption Active
           </div>
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-            All your diary entries, notes, ideas, and tasks are encrypted with AES-256-GCM.
-            Your data can only be read inside Soul Diary. Even if the database file is stolen,
-            it cannot be read without your encryption key.
+          <div style={{
+            fontSize: '0.78rem',
+            color: 'var(--text-secondary)',
+            lineHeight: 1.5,
+          }}>
+            All entries are encrypted with AES-256-GCM.
+            Data cannot be read without your key, even if the file is stolen.
           </div>
         </div>
       </div>
+
+      <style>{`
+        @keyframes slideDown {
+          from { opacity: 0; transform: translateY(-8px); }
+          to   { opacity: 1; transform: translateY(0);    }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg);   }
+          to   { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   )
 }
@@ -933,311 +1334,6 @@ function EditorSection({ settings, updateSettings }: any) {
           ))}
         </div>
       </SettingRow>
-    </div>
-  )
-}
-
-// ─── AI Section ───────────────────────────────────────────────────────────────
-
-function AISection() {
-  const [checking, setChecking] = useState(false)
-  const [aiStatus, setAiStatus] = useState<'unknown' | 'online' | 'offline'>('unknown')
-  const [models, setModels] = useState<{ name: string; size: number }[]>([])
-  const [activeModel, setActiveModel] = useState('')
-  const [pulling, setPulling] = useState(false)
-  const [pullModel, setPullModel] = useState('llama3')
-  const [pullStatus, setPullStatus] = useState('')
-  const [pullPct, setPullPct] = useState<number | null>(null)
-
-  const checkOllama = useCallback(async () => {
-    setChecking(true)
-    try {
-      const res = await window.electronAPI.ai.isAvailable()
-      setAiStatus(res?.available ? 'online' : 'offline')
-
-      if (res?.available) {
-        const modelRes = await window.electronAPI.ai.models()
-        if (modelRes?.success) {
-          setModels(modelRes.data ?? [])
-        }
-        const activeRes = await window.electronAPI.ai.getModel()
-        if (activeRes?.success) setActiveModel(activeRes.model)
-      }
-    } catch {
-      setAiStatus('offline')
-    } finally {
-      setChecking(false)
-    }
-  }, [])
-
-  useEffect(() => { checkOllama() }, [])
-
-  const handleSetModel = async (model: string) => {
-    await window.electronAPI.ai.setModel(model)
-    setActiveModel(model)
-  }
-
-  const handlePullModel = async () => {
-    if (!pullModel.trim()) return
-    setPulling(true)
-    setPullStatus('Starting download...')
-    setPullPct(null)
-
-    window.electronAPI.on('ai:pullProgress', (data: { status: string; percent?: number }) => {
-      setPullStatus(data.status)
-      if (data.percent !== undefined) setPullPct(data.percent)
-    })
-
-    try {
-      const res = await window.electronAPI.ai.pullModel(pullModel.trim())
-      if (res?.success) {
-        setPullStatus('✅ Download complete!')
-        await checkOllama()
-      } else {
-        setPullStatus('❌ Download failed: ' + (res?.error ?? 'Unknown error'))
-      }
-    } catch (err: any) {
-      setPullStatus('❌ Error: ' + err.message)
-    } finally {
-      setPulling(false)
-      setPullPct(null)
-    }
-  }
-
-  const formatSize = (bytes: number) => {
-    if (bytes > 1e9) return `${(bytes / 1e9).toFixed(1)} GB`
-    if (bytes > 1e6) return `${(bytes / 1e6).toFixed(0)} MB`
-    return `${bytes} B`
-  }
-
-  return (
-    <div>
-      <SectionHeader
-        title="AI Settings"
-        desc="Configure offline AI powered by Ollama. All processing happens locally — no internet required."
-      />
-
-      {/* Status card */}
-      <div style={{
-        padding: '1rem 1.25rem',
-        borderRadius: '12px',
-        background: aiStatus === 'online'
-          ? 'rgba(34,197,94,0.06)' : aiStatus === 'offline'
-            ? 'rgba(239,68,68,0.06)' : 'var(--bg-secondary)',
-        border: `1px solid ${aiStatus === 'online'
-          ? 'rgba(34,197,94,0.25)' : aiStatus === 'offline'
-            ? 'rgba(239,68,68,0.25)' : 'var(--border)'}`,
-        marginBottom: '1rem',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '1rem',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{
-            width: '10px',
-            height: '10px',
-            borderRadius: '50%',
-            background: aiStatus === 'online' ? '#22c55e'
-              : aiStatus === 'offline' ? '#ef4444' : '#6b7280',
-            boxShadow: aiStatus === 'online'
-              ? '0 0 8px rgba(34,197,94,0.5)' : 'none',
-          }} />
-          <div>
-            <div style={{
-              fontSize: '0.875rem',
-              fontWeight: 600,
-              color: aiStatus === 'online' ? '#22c55e'
-                : aiStatus === 'offline' ? '#ef4444' : 'var(--text-primary)',
-            }}>
-              Ollama {aiStatus === 'online' ? 'Running'
-                : aiStatus === 'offline' ? 'Not Found' : 'Checking...'}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1px' }}>
-              {aiStatus === 'online'
-                ? `${models.length} model${models.length !== 1 ? 's' : ''} installed`
-                : aiStatus === 'offline'
-                  ? 'Start Ollama on your computer to enable AI features'
-                  : 'Detecting local AI...'}
-            </div>
-          </div>
-        </div>
-        <button
-          onClick={checkOllama}
-          disabled={checking}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            padding: '0.4rem 0.75rem',
-            borderRadius: '8px',
-            border: '1px solid var(--border)',
-            background: 'var(--bg-card)',
-            color: 'var(--text-secondary)',
-            fontSize: '0.78rem',
-            cursor: checking ? 'wait' : 'pointer',
-            fontFamily: 'inherit',
-          }}
-        >
-          <RefreshCw size={12} style={{ animation: checking ? 'spin 1s linear infinite' : 'none' }} />
-          Refresh
-        </button>
-      </div>
-
-      {aiStatus === 'offline' && (
-        <div style={{
-          padding: '0.875rem 1rem',
-          borderRadius: '12px',
-          background: 'rgba(234,179,8,0.06)',
-          border: '1px solid rgba(234,179,8,0.25)',
-          marginBottom: '1rem',
-          fontSize: '0.82rem',
-          color: 'var(--text-secondary)',
-          lineHeight: 1.6,
-        }}>
-          <strong style={{ color: '#d97706' }}>How to start Ollama:</strong><br />
-          1. Download from <strong>ollama.com</strong> if not installed<br />
-          2. Run <code style={{ background: 'var(--bg-tertiary)', padding: '1px 6px', borderRadius: '4px', fontFamily: 'monospace' }}>ollama serve</code> in terminal<br />
-          3. Click Refresh above to detect it
-        </div>
-      )}
-
-      {aiStatus === 'online' && models.length > 0 && (
-        <>
-          <GroupLabel label="Active Model" />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '1rem' }}>
-            {models.map(m => (
-              <button
-                key={m.name}
-                onClick={() => handleSetModel(m.name)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.7rem 1rem',
-                  borderRadius: '10px',
-                  border: `1px solid ${activeModel === m.name ? 'var(--accent)' : 'var(--border)'}`,
-                  background: activeModel === m.name ? 'rgba(99,102,241,0.08)' : 'var(--bg-secondary)',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  textAlign: 'left',
-                  transition: 'all 0.15s',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                  <Cpu size={15} style={{ color: activeModel === m.name ? 'var(--accent)' : 'var(--text-muted)', flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-primary)' }}>
-                      {m.name}
-                    </div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                      {formatSize(m.size)}
-                    </div>
-                  </div>
-                </div>
-                {activeModel === m.name && (
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    fontSize: '0.72rem',
-                    color: 'var(--accent)',
-                    fontWeight: 600,
-                  }}>
-                    <Check size={12} />
-                    Active
-                  </div>
-                )}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-
-      <GroupLabel label="Download New Model" />
-      <div style={{
-        padding: '1rem',
-        borderRadius: '12px',
-        background: 'var(--bg-secondary)',
-        border: '1px solid var(--border)',
-        marginBottom: '0.6rem',
-      }}>
-        <div style={{
-          display: 'flex',
-          gap: '0.5rem',
-          marginBottom: '0.5rem',
-        }}>
-          <input
-            type="text"
-            value={pullModel}
-            onChange={e => setPullModel(e.target.value)}
-            placeholder="Model name (e.g. llama3, mistral, phi3)"
-            className="selectable"
-            style={{
-              flex: 1,
-              padding: '0.45rem 0.75rem',
-              borderRadius: '8px',
-              border: '1px solid var(--border)',
-              background: 'var(--bg-tertiary)',
-              color: 'var(--text-primary)',
-              fontSize: '0.82rem',
-              fontFamily: 'inherit',
-              outline: 'none',
-            }}
-          />
-          <button
-            onClick={handlePullModel}
-            disabled={pulling || !pullModel.trim() || aiStatus !== 'online'}
-            style={{
-              padding: '0.45rem 1rem',
-              borderRadius: '8px',
-              border: 'none',
-              background: aiStatus === 'online' ? 'var(--accent)' : 'var(--bg-tertiary)',
-              color: aiStatus === 'online' ? 'white' : 'var(--text-muted)',
-              fontSize: '0.82rem',
-              fontWeight: 600,
-              cursor: pulling || aiStatus !== 'online' ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-            }}
-          >
-            {pulling
-              ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
-              : <Download size={13} />
-            }
-            Download
-          </button>
-        </div>
-
-        {/* Pull progress */}
-        {pullStatus && (
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
-            {pullStatus}
-          </div>
-        )}
-        {pullPct !== null && (
-          <div style={{
-            marginTop: '0.4rem',
-            height: '4px',
-            borderRadius: '2px',
-            background: 'var(--bg-tertiary)',
-            overflow: 'hidden',
-          }}>
-            <div style={{
-              height: '100%',
-              width: `${pullPct}%`,
-              background: 'linear-gradient(90deg, #6366f1, #a78bfa)',
-              transition: 'width 0.3s ease',
-            }} />
-          </div>
-        )}
-
-        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-          Recommended: <code style={{ background: 'var(--bg-tertiary)', padding: '1px 5px', borderRadius: '4px', fontFamily: 'monospace' }}>llama3</code> (4.7GB) · <code style={{ background: 'var(--bg-tertiary)', padding: '1px 5px', borderRadius: '4px', fontFamily: 'monospace' }}>mistral</code> (4.1GB) · <code style={{ background: 'var(--bg-tertiary)', padding: '1px 5px', borderRadius: '4px', fontFamily: 'monospace' }}>phi3</code> (2.3GB — lightweight)
-        </div>
-      </div>
     </div>
   )
 }
@@ -1434,7 +1530,7 @@ function BackupSection() {
       )}
 
       <GroupLabel label="Export Backup" />
-      
+
       {/* ── Export PDF ─────────────────────────────── */}
       <div style={{
         display: 'flex',
