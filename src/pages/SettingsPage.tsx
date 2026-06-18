@@ -8,7 +8,7 @@ import {
   Download, Upload, Trash2, FolderOpen,
   Check, X, Loader2, AlertCircle,
   ChevronRight, Shield, Zap, Info,
-  RefreshCw, HardDrive, Cpu,Copy, KeyRound,
+  RefreshCw, HardDrive, Cpu, Copy, KeyRound,
 } from 'lucide-react'
 
 // ─── Section IDs ──────────────────────────────────────────────────────────────
@@ -412,7 +412,7 @@ function AppearanceSection({ theme, setTheme, animationsEnabled, toggleAnimation
 async function hashValue(value: string): Promise<string> {
   try {
     const encoder = new TextEncoder()
-    const data = encoder.encode(value + 'soul-diary-salt-v2')
+    const data = encoder.encode(value + 'soul-diary-salt-2024')
     const hash = await crypto.subtle.digest('SHA-256', data)
     const arr = Array.from(new Uint8Array(hash))
     return arr.map(b => b.toString(16).padStart(2, '0')).join('')
@@ -422,13 +422,13 @@ async function hashValue(value: string): Promise<string> {
 }
 
 function generateRecoveryKey(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  let key = ''
-  for (let i = 0; i < 24; i++) {
-    if (i > 0 && i % 6 === 0) key += '-'
-    key += chars[Math.floor(Math.random() * chars.length)]
-  }
-  return key
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  const arr = crypto.getRandomValues(new Uint8Array(32))
+  const key = Array.from(arr)
+    .map(b => chars[b % chars.length])
+    .join('')
+  // Format: XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX
+  return key.match(/.{1,4}/g)!.join('-')
 }
 
 // ─── Security Section ─────────────────────────────────────────────────────────
@@ -484,18 +484,36 @@ function SecuritySection({ settings, updateSettings }: any) {
 
     setLoading(true)
     try {
-      const hashed = await hashValue(newValue)
+      // ── Set PIN via electronAPI (primary) ──────────────────────────
+      const res = await window.electronAPI.pin.set(newValue)
+      if (!res.success) {
+        showMsg(res.error ?? 'Failed to set security.', 'error')
+        setLoading(false)
+        return
+      }
+
+      // ── Generate recovery key ──────────────────────────────────────
       const rKey = generateRecoveryKey()
-      const rHashed = await hashValue(rKey)
+      const rKeyHash = await hashValue(
+        rKey.trim().toUpperCase().replace(/[-\s]/g, '')
+      )
 
-      // Try electronAPI
-      try { await window.electronAPI.pin.set(newValue) } catch { /* ignore */ }
+      // ── Store recovery hash + mode ─────────────────────────────────
+      await window.electronAPI.settings.set('recoveryKeyHash', rKeyHash)
+      await window.electronAPI.settings.set('securityMode', secMode)
+      await window.electronAPI.settings.set('hasPassword', 'true')
 
+      // ── Mode ke hisaab se alag key mein store karo ─────────────────
+      const valueHash = await hashValue(newValue)
+      if (secMode === 'pin') {
+        await window.electronAPI.settings.set('pinHash', valueHash)
+      } else {
+        await window.electronAPI.settings.set('passwordHash', valueHash)
+      }
+
+      // ── Update Zustand store ───────────────────────────────────────
       updateSettings({
         hasPin: true,
-        securityHash: hashed,
-        pinHash: btoa(newValue),   // legacy fallback
-        recoveryKeyHash: rHashed,
         securityMode: secMode,
       })
 
@@ -505,55 +523,46 @@ function SecuritySection({ settings, updateSettings }: any) {
       setNewValue('')
       setConfirmValue('')
       showMsg(
-        settings.hasPin ? 'Security updated successfully!' : 'Security set successfully!',
+        settings.hasPin
+          ? 'Security updated successfully!'
+          : 'Security set successfully!',
         'success'
       )
-    } catch {
-      showMsg('Failed to set security. Try again.', 'error')
+    } catch (err: any) {
+      showMsg('Failed to set security: ' + (err?.message ?? 'Try again.'), 'error')
     } finally {
       setLoading(false)
     }
   }
-
   // ── Remove security ────────────────────────────────────────────────────────
   const handleRemove = async () => {
     if (!currentValue.trim()) return showMsg('Enter your current password or PIN.', 'error')
 
     setLoading(true)
     try {
-      const hashed = await hashValue(currentValue)
-      const stored = settings.securityHash ?? ''
-      let matched = hashed === stored
+      // ── Verify via electronAPI (primary) ───────────────────────────
+      const res = await window.electronAPI.pin.verify(currentValue)
 
-      // Legacy fallback
-      if (!matched && settings.pinHash) {
-        try { matched = currentValue === atob(settings.pinHash) } catch { /* ignore */ }
-      }
+      if (res?.success) {
+        // Remove PIN
+        await window.electronAPI.pin.remove()
 
-      // electronAPI fallback
-      if (!matched) {
-        try {
-          const res = await window.electronAPI.pin.verify(currentValue)
-          matched = res?.success === true
-        } catch { /* ignore */ }
-      }
+        // Clear stored settings
+        await window.electronAPI.settings.set('recoveryKeyHash', '')
+        await window.electronAPI.settings.set('hasPassword', 'false')
 
-      if (matched) {
-        try { await window.electronAPI.pin.remove() } catch { /* ignore */ }
         updateSettings({
           hasPin: false,
-          securityHash: null,
-          pinHash: null,
-          recoveryKeyHash: null,
           securityMode: 'password',
         })
+
         showMsg('Security removed. App is now unlocked.', 'success')
         resetForm()
       } else {
-        showMsg('Wrong password/PIN. Try again.', 'error')
+        showMsg('Wrong password or PIN. Try again.', 'error')
       }
-    } catch {
-      showMsg('Error removing security. Try again.', 'error')
+    } catch (err: any) {
+      showMsg('Error removing security: ' + (err?.message ?? 'Try again.'), 'error')
     } finally {
       setLoading(false)
     }
@@ -667,15 +676,17 @@ function SecuritySection({ settings, updateSettings }: any) {
           </div>
 
           <div style={{
-            fontFamily: 'monospace',
-            fontSize: '1rem',
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: '0.82rem',
             fontWeight: 700,
-            color: 'var(--text-primary)',
-            letterSpacing: '0.1em',
+            color: '#f59e0b',
+            letterSpacing: '0.08em',
+            lineHeight: '1.8',
+            wordBreak: 'break-all',
             padding: '0.75rem',
             background: 'var(--bg-card)',
             borderRadius: '10px',
-            border: '1px solid var(--border)',
+            border: '1px solid rgba(234,179,8,0.3)',
             textAlign: 'center',
             marginBottom: '0.75rem',
             userSelect: 'all',
@@ -862,9 +873,9 @@ function SecuritySection({ settings, updateSettings }: any) {
                     border: `1px solid ${newValue ? 'var(--accent)' : 'var(--border)'}`,
                     background: 'var(--bg-tertiary)',
                     color: 'var(--text-primary)',
-                    fontSize: secMode === 'pin' ? '1.1rem' : '0.875rem',
-                    letterSpacing: secMode === 'pin' ? '0.2em' : 'normal',
-                    fontFamily: secMode === 'pin' ? 'monospace' : 'inherit',
+                    fontSize: '0.875rem',
+                    letterSpacing: 'normal',
+                    fontFamily: 'inherit',
                     outline: 'none',
                     boxSizing: 'border-box',
                   }}
@@ -948,13 +959,13 @@ function SecuritySection({ settings, updateSettings }: any) {
                   padding: '0.55rem 0.85rem',
                   borderRadius: '9px',
                   border: `1px solid ${confirmValue && confirmValue !== newValue ? '#ef4444'
-                      : confirmValue && confirmValue === newValue ? '#22c55e'
-                        : 'var(--border)'}`,
+                    : confirmValue && confirmValue === newValue ? '#22c55e'
+                      : 'var(--border)'}`,
                   background: 'var(--bg-tertiary)',
                   color: 'var(--text-primary)',
-                  fontSize: secMode === 'pin' ? '1.1rem' : '0.875rem',
-                  letterSpacing: secMode === 'pin' ? '0.2em' : 'normal',
-                  fontFamily: secMode === 'pin' ? 'monospace' : 'inherit',
+                  fontSize: '0.875rem',
+                  letterSpacing: 'normal',
+                  fontFamily: 'inherit',
                   outline: 'none',
                   boxSizing: 'border-box',
                 }}
