@@ -66,44 +66,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // ══════════════════════════════════════════════════════════════════════════
-  //  AI  (Ollama local AI — all offline)
-  // ══════════════════════════════════════════════════════════════════════════
-
-  ai: {
-    // Availability
-    isAvailable: () => ipcRenderer.invoke('ai:isAvailable'),
-
-    // Model management
-    models: () => ipcRenderer.invoke('ai:models'),
-    getModel: () => ipcRenderer.invoke('ai:getModel'),
-    setModel: (name: string) => ipcRenderer.invoke('ai:setModel', name),
-    pullModel: (name: string) => ipcRenderer.invoke('ai:pullModel', name),
-
-    // Core generation
-    query: (prompt: string, ctx?: string) => ipcRenderer.invoke('ai:query', prompt, ctx),
-
-    // Diary features
-    detectMood: (text: string) => ipcRenderer.invoke('ai:detectMood', text),
-    summarize: (text: string, style?: string) => ipcRenderer.invoke('ai:summarize', text, style ?? 'brief'),
-    autoTitle: (text: string) => ipcRenderer.invoke('ai:autoTitle', text),
-
-    // Writing help
-    suggestions: (text: string, type?: string) => ipcRenderer.invoke('ai:suggestions', text, type ?? 'continuation'),
-    predictWords: (text: string, count?: number) => ipcRenderer.invoke('ai:predictWords', text, count ?? 3),
-
-    // Ideas
-    expandIdea: (idea: string) => ipcRenderer.invoke('ai:expandIdea', idea),
-
-    // Prompts
-    dailyPrompts: (ctx?: object) => ipcRenderer.invoke('ai:dailyPrompts', ctx),
-
-    // Analysis
-    analyzeStyle: (text: string) => ipcRenderer.invoke('ai:analyzeStyle', text),
-    extractGratitude: (text: string) => ipcRenderer.invoke('ai:extractGratitude', text),
-    batchMood: (entries: unknown[]) => ipcRenderer.invoke('ai:batchMood', entries),
-  },
-
-  // ══════════════════════════════════════════════════════════════════════════
   //  FILE SYSTEM
   // ══════════════════════════════════════════════════════════════════════════
 

@@ -4,11 +4,11 @@ import PDFExport from '@components/ui/PDFExport'
 import {
   Settings, Moon, Sun, Monitor,
   Lock, Unlock, Eye, EyeOff,
-  Type, Palette, Brain, Database,
+  Type, Palette, Database,
   Download, Upload, Trash2, FolderOpen,
   Check, X, Loader2, AlertCircle,
   ChevronRight, Shield, Zap, Info,
-  RefreshCw, HardDrive, Cpu, Copy, KeyRound,
+  RefreshCw, HardDrive, Copy, KeyRound,
 } from 'lucide-react'
 
 // ─── Section IDs ──────────────────────────────────────────────────────────────
@@ -1824,7 +1824,6 @@ function AboutSection() {
           { name: 'SQLite', desc: 'Local database' },
           { name: 'AES-256', desc: 'Encryption' },
           { name: 'TipTap', desc: 'Rich editor' },
-          { name: 'Ollama', desc: 'Local AI' },
           { name: 'Zustand', desc: 'State management' },
         ].map(t => (
           <div

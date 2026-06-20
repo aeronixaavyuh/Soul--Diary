@@ -10,6 +10,7 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "package": "electron-builder",
+    "dist": "electron-vite build && electron-builder",
     "package:win": "electron-builder --win",
     "package:mac": "electron-builder --mac",
     "package:linux": "electron-builder --linux"
@@ -67,8 +68,8 @@
       "output": "release"
     },
     "files": [
-      "dist/**/*",
-      "dist-electron/**/*"
+      "out/**/*",
+      "package.json"
     ],
     "win": {
       "target": "nsis",

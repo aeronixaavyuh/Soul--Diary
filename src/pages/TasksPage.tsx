@@ -5,15 +5,12 @@ import {
   PRIORITY_CONFIG, STATUS_CONFIG,
 } from '@store/useTaskStore'
 import {
-  Plus, CheckSquare, Check, Circle,
-  Clock, Flag, Trash2, Pin, Search,
+  Plus, CheckSquare, Check,
+  Clock, Trash2, Pin, Search,
   LayoutGrid, List, Filter, X,
   ChevronDown, ChevronRight, Loader2,
-  Wand2, Calendar, AlertCircle, Sparkles,
-  MoreVertical, Edit2, RotateCcw,
+  Calendar, Edit2,
 } from 'lucide-react'
-
-// ─── View modes ───────────────────────────────────────────────────────────────
 
 type ViewMode = 'list' | 'kanban'
 
@@ -26,7 +23,7 @@ export default function TasksPage() {
     loadTasks, createTask, updateTask, deleteTask,
     completeTask, reopenTask, togglePin,
     setFilterStatus, setFilterPriority,
-    setSearchQuery, setSortBy,
+    setSearchQuery,
   } = useTaskStore()
 
   const filteredTasks = useFilteredTasks()
@@ -42,9 +39,6 @@ export default function TasksPage() {
   const [editTitle,      setEditTitle]      = useState('')
   const [expandedTask,   setExpandedTask]   = useState<string | null>(null)
   const [showFilterMenu, setShowFilterMenu] = useState(false)
-  const [aiLoading,      setAiLoading]      = useState(false)
-  const [aiTasks,        setAiTasks]        = useState<string[]>([])
-  const [showAiPanel,    setShowAiPanel]    = useState(false)
   const [newSubTitle,    setNewSubTitle]    = useState('')
   const [addingSubTo,    setAddingSubTo]    = useState<string | null>(null)
 
@@ -54,7 +48,6 @@ export default function TasksPage() {
   // ── Load on mount ──────────────────────────────────────────────────────────
   useEffect(() => { loadTasks() }, [])
 
-  // ── Focus new task input ───────────────────────────────────────────────────
   useEffect(() => {
     if (showNewForm) setTimeout(() => newTitleRef.current?.focus(), 50)
   }, [showNewForm])
@@ -75,7 +68,6 @@ export default function TasksPage() {
     setNewDueDate('')
     setNewPriority('medium')
     setShowNewForm(false)
-    newTitleRef.current?.focus()
   }, [newTitle, newPriority, newDueDate, createTask])
 
   // ── Create subtask ─────────────────────────────────────────────────────────
@@ -100,41 +92,6 @@ export default function TasksPage() {
     else                        await completeTask(task.id)
   }, [completeTask, reopenTask])
 
-  // ── AI suggest tasks ───────────────────────────────────────────────────────
-  const handleAiSuggest = useCallback(async () => {
-    setAiLoading(true)
-    setShowAiPanel(true)
-    try {
-      const existing = tasks.slice(0, 5).map(t => t.title).join(', ')
-      const prompt = existing
-        ? `Based on these existing tasks: "${existing}", suggest 5 related actionable tasks. Each should be specific and completable.`
-        : 'Suggest 5 productive daily tasks for personal growth and productivity.'
-
-      const res = await window.electronAPI.ai.query(prompt)
-      if (res?.success && res.data) {
-        // Parse numbered list from AI response
-        const lines = res.data
-          .split('\n')
-          .map((l: string) => l.replace(/^\d+\.\s*/, '').replace(/^[-•]\s*/, '').trim())
-          .filter((l: string) => l.length > 5 && l.length < 100)
-          .slice(0, 5)
-        setAiTasks(lines.length > 0 ? lines : defaultAiTasks())
-      } else {
-        setAiTasks(defaultAiTasks())
-      }
-    } catch {
-      setAiTasks(defaultAiTasks())
-    } finally {
-      setAiLoading(false)
-    }
-  }, [tasks])
-
-  // ── Add AI task ────────────────────────────────────────────────────────────
-  const handleAddAiTask = useCallback(async (title: string) => {
-    await createTask({ title, priority: 'medium' })
-    setAiTasks(prev => prev.filter(t => t !== title))
-  }, [createTask])
-
   // ── Format due date ────────────────────────────────────────────────────────
   const formatDue = (due: string | null) => {
     if (!due) return null
@@ -143,11 +100,10 @@ export default function TasksPage() {
       const now  = new Date()
       const diff = d.getTime() - now.getTime()
       const days = Math.ceil(diff / 86400000)
-
-      if (days < 0)  return { label: `${Math.abs(days)}d overdue`, color: '#ef4444' }
-      if (days === 0) return { label: 'Due today',  color: '#f97316' }
+      if (days < 0)   return { label: `${Math.abs(days)}d overdue`, color: '#ef4444' }
+      if (days === 0) return { label: 'Due today',    color: '#f97316' }
       if (days === 1) return { label: 'Due tomorrow', color: '#eab308' }
-      if (days < 7)  return { label: `${days}d left`,  color: '#22c55e' }
+      if (days < 7)   return { label: `${days}d left`, color: '#22c55e' }
       return {
         label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
         color: 'var(--text-muted)',
@@ -163,7 +119,6 @@ export default function TasksPage() {
     { status: 'cancelled',   label: 'Cancelled',   color: '#94a3b8' },
   ]
 
-  // ── Stats bar ──────────────────────────────────────────────────────────────
   const completionPct = stats.total > 0
     ? Math.round((stats.done / stats.total) * 100)
     : 0
@@ -179,12 +134,12 @@ export default function TasksPage() {
       background:    'var(--bg-primary)',
     }}>
 
-      {/* ── Header ──────────────────────────────────────────────────────── */}
+      {/* ── Header ─────────────────────────────────────────────────────── */}
       <div style={{
-        padding:        '1rem 1.5rem 0.75rem',
-        borderBottom:   '1px solid var(--border)',
-        background:     'var(--bg-secondary)',
-        flexShrink:     0,
+        padding:      '1rem 1.5rem 0.75rem',
+        borderBottom: '1px solid var(--border)',
+        background:   'var(--bg-secondary)',
+        flexShrink:   0,
       }}>
         {/* Title row */}
         <div style={{
@@ -207,7 +162,7 @@ export default function TasksPage() {
             </span>
           </div>
 
-          {/* Right controls */}
+          {/* Controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
 
             {/* Search */}
@@ -248,18 +203,18 @@ export default function TasksPage() {
               <button
                 onClick={() => setShowFilterMenu(v => !v)}
                 style={{
-                  display:        'flex',
-                  alignItems:     'center',
-                  gap:            '4px',
-                  padding:        '0.35rem 0.7rem',
-                  borderRadius:   '8px',
-                  border:         '1px solid var(--border)',
-                  background:     showFilterMenu ? 'var(--bg-tertiary)' : 'transparent',
-                  color:          filterStatus !== 'all' || filterPriority !== 'all'
+                  display:     'flex',
+                  alignItems:  'center',
+                  gap:         '4px',
+                  padding:     '0.35rem 0.7rem',
+                  borderRadius:'8px',
+                  border:      '1px solid var(--border)',
+                  background:  showFilterMenu ? 'var(--bg-tertiary)' : 'transparent',
+                  color:       filterStatus !== 'all' || filterPriority !== 'all'
                     ? 'var(--accent)' : 'var(--text-secondary)',
-                  fontSize:       '0.78rem',
-                  cursor:         'pointer',
-                  fontFamily:     'inherit',
+                  fontSize:    '0.78rem',
+                  cursor:      'pointer',
+                  fontFamily:  'inherit',
                 }}
               >
                 <Filter size={13} />
@@ -293,7 +248,7 @@ export default function TasksPage() {
                     boxShadow:    '0 8px 32px rgba(0,0,0,0.2)',
                     minWidth:     '200px',
                   }}>
-                    {/* Status filter */}
+                    {/* Status */}
                     <div style={{ marginBottom: '0.75rem' }}>
                       <div style={{
                         fontSize:      '0.65rem',
@@ -305,7 +260,7 @@ export default function TasksPage() {
                       }}>
                         Status
                       </div>
-                      {(['all', 'todo', 'in_progress', 'done', 'cancelled'] as const).map(s => (
+                      {(['all','todo','in_progress','done','cancelled'] as const).map(s => (
                         <button
                           key={s}
                           onClick={() => { setFilterStatus(s); setShowFilterMenu(false) }}
@@ -334,13 +289,12 @@ export default function TasksPage() {
                               flexShrink:   0,
                             }} />
                           )}
-                          {s === 'all' ? 'All Statuses'
-                           : STATUS_CONFIG[s as TaskStatus].label}
+                          {s === 'all' ? 'All Statuses' : STATUS_CONFIG[s as TaskStatus].label}
                         </button>
                       ))}
                     </div>
 
-                    {/* Priority filter */}
+                    {/* Priority */}
                     <div>
                       <div style={{
                         fontSize:      '0.65rem',
@@ -352,7 +306,7 @@ export default function TasksPage() {
                       }}>
                         Priority
                       </div>
-                      {(['all', 'urgent', 'high', 'medium', 'low'] as const).map(p => (
+                      {(['all','urgent','high','medium','low'] as const).map(p => (
                         <button
                           key={p}
                           onClick={() => { setFilterPriority(p); setShowFilterMenu(false) }}
@@ -377,13 +331,11 @@ export default function TasksPage() {
                               {PRIORITY_CONFIG[p as TaskPriority].icon}
                             </span>
                           )}
-                          {p === 'all' ? 'All Priorities'
-                           : PRIORITY_CONFIG[p as TaskPriority].label}
+                          {p === 'all' ? 'All Priorities' : PRIORITY_CONFIG[p as TaskPriority].label}
                         </button>
                       ))}
                     </div>
 
-                    {/* Reset */}
                     {(filterStatus !== 'all' || filterPriority !== 'all') && (
                       <button
                         onClick={() => {
@@ -420,7 +372,7 @@ export default function TasksPage() {
               border:      '1px solid var(--border)',
               overflow:    'hidden',
             }}>
-              {(['list', 'kanban'] as ViewMode[]).map(v => (
+              {(['list','kanban'] as ViewMode[]).map(v => (
                 <button
                   key={v}
                   onClick={() => setViewMode(v)}
@@ -443,48 +395,23 @@ export default function TasksPage() {
               ))}
             </div>
 
-            {/* AI suggest */}
-            <button
-              onClick={handleAiSuggest}
-              disabled={aiLoading}
-              style={{
-                display:     'flex',
-                alignItems:  'center',
-                gap:         '4px',
-                padding:     '0.35rem 0.7rem',
-                borderRadius:'8px',
-                border:      '1px solid var(--border)',
-                background:  showAiPanel ? 'rgba(99,102,241,0.1)' : 'var(--bg-tertiary)',
-                color:       showAiPanel ? 'var(--accent)' : 'var(--text-secondary)',
-                fontSize:    '0.78rem',
-                cursor:      aiLoading ? 'wait' : 'pointer',
-                fontFamily:  'inherit',
-              }}
-            >
-              {aiLoading
-                ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
-                : <Sparkles size={12} />
-              }
-              AI Suggest
-            </button>
-
             {/* New task */}
             <button
               onClick={() => setShowNewForm(true)}
               style={{
-                display:        'flex',
-                alignItems:     'center',
-                gap:            '4px',
-                padding:        '0.35rem 0.75rem',
-                borderRadius:   '8px',
-                border:         'none',
-                cursor:         'pointer',
-                background:     'linear-gradient(135deg, #34d399, #10b981)',
-                color:          'white',
-                fontSize:       '0.78rem',
-                fontWeight:     600,
-                fontFamily:     'inherit',
-                boxShadow:      '0 2px 8px rgba(52,211,153,0.35)',
+                display:     'flex',
+                alignItems:  'center',
+                gap:         '4px',
+                padding:     '0.35rem 0.75rem',
+                borderRadius:'8px',
+                border:      'none',
+                cursor:      'pointer',
+                background:  'linear-gradient(135deg, #34d399, #10b981)',
+                color:       'white',
+                fontSize:    '0.78rem',
+                fontWeight:  600,
+                fontFamily:  'inherit',
+                boxShadow:   '0 2px 8px rgba(52,211,153,0.35)',
               }}
             >
               <Plus size={13} />
@@ -494,41 +421,23 @@ export default function TasksPage() {
         </div>
 
         {/* Stats bar */}
-        <div style={{
-          display:   'flex',
-          alignItems:'center',
-          gap:       '1rem',
-          flexWrap:  'wrap',
-        }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
           {[
-            { label: 'Total',       value: stats.total,      color: 'var(--text-secondary)' },
-            { label: 'To Do',       value: stats.todo,        color: '#6b7280'              },
-            { label: 'In Progress', value: stats.inProgress,  color: '#6366f1'              },
-            { label: 'Done',        value: stats.done,        color: '#22c55e'              },
-            { label: 'Overdue',     value: stats.overdue,     color: '#ef4444'              },
-            { label: 'Due Today',   value: stats.dueToday,    color: '#f97316'              },
+            { label: 'Total',       value: stats.total,       color: 'var(--text-secondary)' },
+            { label: 'To Do',       value: stats.todo,        color: '#6b7280'               },
+            { label: 'In Progress', value: stats.inProgress,  color: '#6366f1'               },
+            { label: 'Done',        value: stats.done,        color: '#22c55e'               },
+            { label: 'Overdue',     value: stats.overdue,     color: '#ef4444'               },
+            { label: 'Due Today',   value: stats.dueToday,    color: '#f97316'               },
           ].map(s => (
-            <div key={s.label} style={{
-              display:    'flex',
-              alignItems: 'center',
-              gap:        '4px',
-              fontSize:   '0.72rem',
-            }}>
-              <span style={{ color: s.color, fontWeight: 700, fontSize: '0.85rem' }}>
-                {s.value}
-              </span>
+            <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem' }}>
+              <span style={{ color: s.color, fontWeight: 700, fontSize: '0.85rem' }}>{s.value}</span>
               <span style={{ color: 'var(--text-muted)' }}>{s.label}</span>
             </div>
           ))}
 
-          {/* Progress bar */}
           {stats.total > 0 && (
-            <div style={{
-              display:    'flex',
-              alignItems: 'center',
-              gap:        '0.4rem',
-              marginLeft: 'auto',
-            }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginLeft: 'auto' }}>
               <div style={{
                 width:        '80px',
                 height:       '4px',
@@ -552,88 +461,7 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {/* ── AI Suggestions Panel ────────────────────────────────────────── */}
-      {showAiPanel && (
-        <div style={{
-          padding:      '0.75rem 1.5rem',
-          background:   'rgba(99,102,241,0.05)',
-          borderBottom: '1px solid rgba(99,102,241,0.15)',
-          flexShrink:   0,
-        }}>
-          <div style={{
-            display:        'flex',
-            alignItems:     'center',
-            justifyContent: 'space-between',
-            marginBottom:   '0.5rem',
-          }}>
-            <div style={{
-              display:    'flex',
-              alignItems: 'center',
-              gap:        '0.4rem',
-              fontSize:   '0.75rem',
-              fontWeight: 600,
-              color:      'var(--accent)',
-            }}>
-              <Wand2 size={12} />
-              AI Task Suggestions
-            </div>
-            <button
-              onClick={() => setShowAiPanel(false)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}
-            >
-              <X size={13} />
-            </button>
-          </div>
-
-          {aiLoading ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-              <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
-              Generating task suggestions...
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-              {aiTasks.map((t, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleAddAiTask(t)}
-                  style={{
-                    display:      'flex',
-                    alignItems:   'center',
-                    gap:          '5px',
-                    padding:      '0.35rem 0.75rem',
-                    borderRadius: '999px',
-                    border:       '1px solid rgba(99,102,241,0.25)',
-                    background:   'var(--bg-card)',
-                    color:        'var(--text-primary)',
-                    fontSize:     '0.78rem',
-                    cursor:       'pointer',
-                    fontFamily:   'inherit',
-                    transition:   'all 0.15s',
-                  }}
-                  onMouseEnter={e => {
-                    (e.currentTarget as HTMLElement).style.background  = 'rgba(99,102,241,0.1)'
-                    ;(e.currentTarget as HTMLElement).style.borderColor = 'rgba(99,102,241,0.4)'
-                  }}
-                  onMouseLeave={e => {
-                    (e.currentTarget as HTMLElement).style.background  = 'var(--bg-card)'
-                    ;(e.currentTarget as HTMLElement).style.borderColor = 'rgba(99,102,241,0.25)'
-                  }}
-                >
-                  <Plus size={11} style={{ color: 'var(--accent)' }} />
-                  {t}
-                </button>
-              ))}
-              {aiTasks.length === 0 && (
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  All suggestions added!
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── New Task Form ────────────────────────────────────────────────── */}
+      {/* ── New Task Form ───────────────────────────────────────────────── */}
       {showNewForm && (
         <div style={{
           padding:      '0.75rem 1.5rem',
@@ -641,20 +469,14 @@ export default function TasksPage() {
           background:   'var(--bg-secondary)',
           flexShrink:   0,
         }}>
-          <div style={{
-            display:      'flex',
-            alignItems:   'center',
-            gap:          '0.6rem',
-            flexWrap:     'wrap',
-          }}>
-            {/* Title input */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
             <input
               ref={newTitleRef}
               type="text"
               value={newTitle}
               onChange={e => setNewTitle(e.target.value)}
               onKeyDown={e => {
-                if (e.key === 'Enter') handleCreate()
+                if (e.key === 'Enter')  handleCreate()
                 if (e.key === 'Escape') { setShowNewForm(false); setNewTitle('') }
               }}
               placeholder="Task title... (Enter to create)"
@@ -674,7 +496,6 @@ export default function TasksPage() {
               }}
             />
 
-            {/* Priority select */}
             <select
               value={newPriority}
               onChange={e => setNewPriority(e.target.value as TaskPriority)}
@@ -696,7 +517,6 @@ export default function TasksPage() {
               <option value="urgent">🔴 Urgent</option>
             </select>
 
-            {/* Due date */}
             <input
               type="date"
               value={newDueDate}
@@ -714,7 +534,6 @@ export default function TasksPage() {
               }}
             />
 
-            {/* Actions */}
             <div style={{ display: 'flex', gap: '4px' }}>
               <button
                 onClick={handleCreate}
@@ -729,7 +548,6 @@ export default function TasksPage() {
                   fontWeight:   600,
                   cursor:       newTitle.trim() ? 'pointer' : 'not-allowed',
                   fontFamily:   'inherit',
-                  transition:   'all 0.15s',
                 }}
               >
                 Create
@@ -754,7 +572,7 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* ── Main Content ─────────────────────────────────────────────────── */}
+      {/* ── Main Content ────────────────────────────────────────────────── */}
       <div style={{ flex: 1, overflow: 'auto', padding: '1rem 1.5rem' }}>
 
         {isLoading ? (
@@ -769,13 +587,14 @@ export default function TasksPage() {
             <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
             Loading tasks...
           </div>
+
         ) : viewMode === 'kanban' ? (
-          // ── KANBAN BOARD ──────────────────────────────────────────────────
+          // ── KANBAN ───────────────────────────────────────────────────────
           <div style={{
-            display:   'flex',
-            gap:       '1rem',
-            height:    '100%',
-            overflowX: 'auto',
+            display:       'flex',
+            gap:           '1rem',
+            height:        '100%',
+            overflowX:     'auto',
             paddingBottom: '1rem',
           }}>
             {kanbanCols.map(col => {
@@ -795,7 +614,6 @@ export default function TasksPage() {
                     flexShrink:    0,
                   }}
                 >
-                  {/* Column header */}
                   <div style={{
                     padding:        '0.75rem 1rem',
                     display:        'flex',
@@ -811,11 +629,7 @@ export default function TasksPage() {
                         borderRadius: '50%',
                         background:   col.color,
                       }} />
-                      <span style={{
-                        fontSize:   '0.8rem',
-                        fontWeight: 600,
-                        color:      'var(--text-primary)',
-                      }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                         {col.label}
                       </span>
                     </div>
@@ -830,14 +644,13 @@ export default function TasksPage() {
                     </span>
                   </div>
 
-                  {/* Tasks in column */}
                   <div style={{
-                    flex:      1,
-                    overflowY: 'auto',
-                    padding:   '0.5rem',
-                    display:   'flex',
+                    flex:          1,
+                    overflowY:     'auto',
+                    padding:       '0.5rem',
+                    display:       'flex',
                     flexDirection: 'column',
-                    gap:       '6px',
+                    gap:           '6px',
                   }}>
                     {colTasks.map(task => (
                       <KanbanCard
@@ -845,17 +658,15 @@ export default function TasksPage() {
                         task={task}
                         onComplete={() => handleToggleComplete(task)}
                         onDelete={() => deleteTask(task.id)}
-                        onStatusChange={(s) => updateTask(task.id, { status: s })}
                         formatDue={formatDue}
                       />
                     ))}
-
                     {colTasks.length === 0 && (
                       <div style={{
-                        textAlign:  'center',
-                        padding:    '2rem 1rem',
-                        color:      'var(--text-muted)',
-                        fontSize:   '0.78rem',
+                        textAlign: 'center',
+                        padding:   '2rem 1rem',
+                        color:     'var(--text-muted)',
+                        fontSize:  '0.78rem',
                       }}>
                         No tasks here
                       </div>
@@ -865,6 +676,7 @@ export default function TasksPage() {
               )
             })}
           </div>
+
         ) : (
           // ── LIST VIEW ─────────────────────────────────────────────────────
           <div>
@@ -961,38 +773,36 @@ export default function TasksPage() {
   )
 }
 
-// ─── KanbanCard Component ─────────────────────────────────────────────────────
+// ─── KanbanCard ───────────────────────────────────────────────────────────────
 
 function KanbanCard({
-  task, onComplete, onDelete, onStatusChange, formatDue
+  task, onComplete, onDelete, formatDue
 }: {
-  task:           Task
-  onComplete:     () => void
-  onDelete:       () => void
-  onStatusChange: (s: TaskStatus) => void
-  formatDue:      (d: string | null) => { label: string; color: string } | null
+  task:       Task
+  onComplete: () => void
+  onDelete:   () => void
+  formatDue:  (d: string | null) => { label: string; color: string } | null
 }) {
   const due      = formatDue(task.due_date)
   const priority = PRIORITY_CONFIG[task.priority]
   const isDone   = task.status === 'done'
 
   return (
-    <div style={{
-      padding:      '0.65rem 0.75rem',
-      borderRadius: '10px',
-      background:   'var(--bg-card)',
-      border:       '1px solid var(--border)',
-      cursor:       'default',
-      transition:   'box-shadow 0.15s',
-    }}
-    onMouseEnter={e =>
-      (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 12px var(--shadow)'
-    }
-    onMouseLeave={e =>
-      (e.currentTarget as HTMLElement).style.boxShadow = 'none'
-    }
+    <div
+      style={{
+        padding:      '0.65rem 0.75rem',
+        borderRadius: '10px',
+        background:   'var(--bg-card)',
+        border:       '1px solid var(--border)',
+        transition:   'box-shadow 0.15s',
+      }}
+      onMouseEnter={e =>
+        (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 12px var(--shadow)'
+      }
+      onMouseLeave={e =>
+        (e.currentTarget as HTMLElement).style.boxShadow = 'none'
+      }
     >
-      {/* Title row */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.4rem' }}>
         <button
           onClick={onComplete}
@@ -1029,7 +839,6 @@ function KanbanCard({
         </span>
       </div>
 
-      {/* Footer */}
       <div style={{
         display:        'flex',
         alignItems:     'center',
@@ -1039,7 +848,6 @@ function KanbanCard({
         gap:            '4px',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          {/* Priority */}
           <span style={{
             fontSize:     '0.65rem',
             padding:      '1px 6px',
@@ -1050,15 +858,13 @@ function KanbanCard({
           }}>
             {priority.icon} {priority.label}
           </span>
-
-          {/* Due */}
           {due && (
             <span style={{
-              fontSize:  '0.65rem',
-              color:     due.color,
-              display:   'flex',
-              alignItems:'center',
-              gap:       '2px',
+              fontSize:   '0.65rem',
+              color:      due.color,
+              display:    'flex',
+              alignItems: 'center',
+              gap:        '2px',
             }}>
               <Clock size={9} />
               {due.label}
@@ -1086,7 +892,7 @@ function KanbanCard({
   )
 }
 
-// ─── TaskListItem Component ───────────────────────────────────────────────────
+// ─── TaskListItem ─────────────────────────────────────────────────────────────
 
 function TaskListItem({
   task, isExpanded, isEditing, editTitle,
@@ -1097,52 +903,52 @@ function TaskListItem({
   onCreateSubtask, onSubTitleChange, onCancelSubtask,
   onCompleteSubtask, onDeleteSubtask, formatDue, editRef,
 }: {
-  task:               Task
-  isExpanded:         boolean
-  isEditing:          boolean
-  editTitle:          string
-  addingSubTo:        string | null
-  newSubTitle:        string
-  onToggleExpand:     () => void
-  onComplete:         () => void
-  onStartEdit:        () => void
-  onSaveEdit:         () => void
-  onCancelEdit:       () => void
-  onEditTitleChange:  (v: string) => void
-  onDelete:           () => void
-  onPin:              () => void
-  onStatusChange:     (s: TaskStatus) => void
-  onPriorityChange:   (p: TaskPriority) => void
-  onAddSubtask:       () => void
-  onCreateSubtask:    () => void
-  onSubTitleChange:   (v: string) => void
-  onCancelSubtask:    () => void
-  onCompleteSubtask:  (sub: Task) => void
-  onDeleteSubtask:    (id: string) => void
-  formatDue:          (d: string | null) => { label: string; color: string } | null
-  editRef?:           React.RefObject<HTMLInputElement>
+  task:              Task
+  isExpanded:        boolean
+  isEditing:         boolean
+  editTitle:         string
+  addingSubTo:       string | null
+  newSubTitle:       string
+  onToggleExpand:    () => void
+  onComplete:        () => void
+  onStartEdit:       () => void
+  onSaveEdit:        () => void
+  onCancelEdit:      () => void
+  onEditTitleChange: (v: string) => void
+  onDelete:          () => void
+  onPin:             () => void
+  onStatusChange:    (s: TaskStatus) => void
+  onPriorityChange:  (p: TaskPriority) => void
+  onAddSubtask:      () => void
+  onCreateSubtask:   () => void
+  onSubTitleChange:  (v: string) => void
+  onCancelSubtask:   () => void
+  onCompleteSubtask: (sub: Task) => void
+  onDeleteSubtask:   (id: string) => void
+  formatDue:         (d: string | null) => { label: string; color: string } | null
+  editRef?:          React.RefObject<HTMLInputElement>
 }) {
-  const isDone     = task.status === 'done'
-  const due        = formatDue(task.due_date)
-  const priority   = PRIORITY_CONFIG[task.priority]
-  const hasSubtasks= (task.subtasks?.length ?? 0) > 0
-  const [showMenu, setShowMenu] = useState(false)
+  const isDone      = task.status === 'done'
+  const due         = formatDue(task.due_date)
+  const priority    = PRIORITY_CONFIG[task.priority]
+  const hasSubtasks = (task.subtasks?.length ?? 0) > 0
 
   return (
-    <div style={{
-      borderRadius: '10px',
-      border:       '1px solid var(--border)',
-      background:   'var(--bg-secondary)',
-      overflow:     'hidden',
-      transition:   'border-color 0.15s',
-    }}
-    onMouseEnter={e =>
-      (e.currentTarget as HTMLElement).style.borderColor = isDone
-        ? 'var(--border)' : 'rgba(99,102,241,0.3)'
-    }
-    onMouseLeave={e =>
-      (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'
-    }
+    <div
+      style={{
+        borderRadius: '10px',
+        border:       '1px solid var(--border)',
+        background:   'var(--bg-secondary)',
+        overflow:     'hidden',
+        transition:   'border-color 0.15s',
+      }}
+      onMouseEnter={e =>
+        (e.currentTarget as HTMLElement).style.borderColor = isDone
+          ? 'var(--border)' : 'rgba(99,102,241,0.3)'
+      }
+      onMouseLeave={e =>
+        (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'
+      }
     >
       {/* Main row */}
       <div style={{
@@ -1151,7 +957,7 @@ function TaskListItem({
         gap:        '0.5rem',
         padding:    '0.6rem 0.75rem',
       }}>
-        {/* Expand toggle */}
+        {/* Expand */}
         <button
           onClick={onToggleExpand}
           style={{
@@ -1174,6 +980,7 @@ function TaskListItem({
         {/* Checkbox */}
         <button
           onClick={onComplete}
+          title={isDone ? 'Reopen task' : 'Complete task'}
           style={{
             width:          '18px',
             height:         '18px',
@@ -1187,7 +994,6 @@ function TaskListItem({
             flexShrink:     0,
             transition:     'all 0.15s',
           }}
-          title={isDone ? 'Reopen task' : 'Complete task'}
         >
           {isDone && <Check size={10} color="white" strokeWidth={3} />}
         </button>
@@ -1220,12 +1026,12 @@ function TaskListItem({
           <span
             onDoubleClick={onStartEdit}
             style={{
-              flex:           1,
-              fontSize:       '0.875rem',
-              color:          isDone ? 'var(--text-muted)' : 'var(--text-primary)',
-              textDecoration: isDone ? 'line-through' : 'none',
-              cursor:         'default',
-              userSelect:     'text',
+              flex:             1,
+              fontSize:         '0.875rem',
+              color:            isDone ? 'var(--text-muted)' : 'var(--text-primary)',
+              textDecoration:   isDone ? 'line-through' : 'none',
+              cursor:           'default',
+              userSelect:       'text',
               WebkitUserSelect: 'text',
             }}
           >
@@ -1233,29 +1039,28 @@ function TaskListItem({
           </span>
         )}
 
-        {/* Meta badges */}
+        {/* Meta */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-          {/* Priority badge */}
-          <span style={{
-            fontSize:     '0.65rem',
-            padding:      '2px 7px',
-            borderRadius: '999px',
-            background:   priority.bg,
-            color:        priority.color,
-            fontWeight:   500,
-            cursor:       'pointer',
-          }}
-          title="Click to change priority"
-          onClick={() => {
-            const order: TaskPriority[] = ['low','medium','high','urgent']
-            const idx  = order.indexOf(task.priority)
-            onPriorityChange(order[(idx + 1) % order.length])
-          }}
+          <span
+            title="Click to change priority"
+            onClick={() => {
+              const order: TaskPriority[] = ['low','medium','high','urgent']
+              const idx = order.indexOf(task.priority)
+              onPriorityChange(order[(idx + 1) % order.length])
+            }}
+            style={{
+              fontSize:     '0.65rem',
+              padding:      '2px 7px',
+              borderRadius: '999px',
+              background:   priority.bg,
+              color:        priority.color,
+              fontWeight:   500,
+              cursor:       'pointer',
+            }}
           >
             {priority.icon}
           </span>
 
-          {/* Due date */}
           {due && (
             <span style={{
               fontSize:   '0.68rem',
@@ -1270,13 +1075,10 @@ function TaskListItem({
             </span>
           )}
 
-          {/* Pin indicator */}
-          {task.is_pinned ? (
-            <Pin size={11} style={{ color: '#fbbf24' }} />
-          ) : null}
+          {task.is_pinned && <Pin size={11} style={{ color: '#fbbf24' }} />}
         </div>
 
-        {/* Action buttons */}
+        {/* Actions */}
         {isEditing ? (
           <div style={{ display: 'flex', gap: '4px' }}>
             <button
@@ -1313,117 +1115,68 @@ function TaskListItem({
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-            <button
-              onClick={onStartEdit}
-              title="Edit task"
-              style={{
-                width:          '24px',
-                height:         '24px',
-                borderRadius:   '6px',
-                border:         'none',
-                background:     'transparent',
-                color:          'var(--text-muted)',
-                cursor:         'pointer',
-                display:        'flex',
-                alignItems:     'center',
-                justifyContent: 'center',
-              }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-tertiary)'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-            >
-              <Edit2 size={12} />
-            </button>
-
-            <button
-              onClick={onPin}
-              title={task.is_pinned ? 'Unpin' : 'Pin task'}
-              style={{
-                width:          '24px',
-                height:         '24px',
-                borderRadius:   '6px',
-                border:         'none',
-                background:     'transparent',
-                color:          task.is_pinned ? '#fbbf24' : 'var(--text-muted)',
-                cursor:         'pointer',
-                display:        'flex',
-                alignItems:     'center',
-                justifyContent: 'center',
-              }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-tertiary)'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-            >
-              <Pin size={12} />
-            </button>
-
-            <button
-              onClick={onAddSubtask}
-              title="Add subtask"
-              style={{
-                width:          '24px',
-                height:         '24px',
-                borderRadius:   '6px',
-                border:         'none',
-                background:     'transparent',
-                color:          'var(--text-muted)',
-                cursor:         'pointer',
-                display:        'flex',
-                alignItems:     'center',
-                justifyContent: 'center',
-              }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-tertiary)'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-            >
-              <Plus size={12} />
-            </button>
-
-            <button
-              onClick={onDelete}
-              title="Delete task"
-              style={{
-                width:          '24px',
-                height:         '24px',
-                borderRadius:   '6px',
-                border:         'none',
-                background:     'transparent',
-                color:          'var(--text-muted)',
-                cursor:         'pointer',
-                display:        'flex',
-                alignItems:     'center',
-                justifyContent: 'center',
-              }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.1)'
-                ;(e.currentTarget as HTMLElement).style.color = '#ef4444'
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.background = 'transparent'
-                ;(e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'
-              }}
-            >
-              <Trash2 size={12} />
-            </button>
+            {[
+              { icon: <Edit2  size={12} />, onClick: onStartEdit,  title: 'Edit',     danger: false },
+              { icon: <Pin    size={12} />, onClick: onPin,         title: task.is_pinned ? 'Unpin' : 'Pin', danger: false },
+              { icon: <Plus   size={12} />, onClick: onAddSubtask,  title: 'Add subtask', danger: false },
+              { icon: <Trash2 size={12} />, onClick: onDelete,      title: 'Delete',   danger: true  },
+            ].map((btn, i) => (
+              <button
+                key={i}
+                onClick={btn.onClick}
+                title={btn.title}
+                style={{
+                  width:          '24px',
+                  height:         '24px',
+                  borderRadius:   '6px',
+                  border:         'none',
+                  background:     'transparent',
+                  color:          btn.danger ? 'var(--text-muted)'
+                    : i === 1 && task.is_pinned ? '#fbbf24'
+                    : 'var(--text-muted)',
+                  cursor:         'pointer',
+                  display:        'flex',
+                  alignItems:     'center',
+                  justifyContent: 'center',
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.background = btn.danger
+                    ? 'rgba(239,68,68,0.1)' : 'var(--bg-tertiary)'
+                  ;(e.currentTarget as HTMLElement).style.color = btn.danger
+                    ? '#ef4444' : 'var(--text-primary)'
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.background = 'transparent'
+                  ;(e.currentTarget as HTMLElement).style.color = btn.danger
+                    ? 'var(--text-muted)'
+                    : i === 1 && task.is_pinned ? '#fbbf24'
+                    : 'var(--text-muted)'
+                }}
+              >
+                {btn.icon}
+              </button>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Expanded: subtasks */}
+      {/* Subtasks */}
       {isExpanded && (
         <div style={{
-          paddingLeft:  '2.5rem',
-          paddingRight: '0.75rem',
-          paddingBottom:'0.5rem',
-          borderTop:    '1px solid var(--border)',
-          background:   'var(--bg-tertiary)',
+          paddingLeft:   '2.5rem',
+          paddingRight:  '0.75rem',
+          paddingBottom: '0.5rem',
+          borderTop:     '1px solid var(--border)',
+          background:    'var(--bg-tertiary)',
         }}>
-          {/* Existing subtasks */}
           {(task.subtasks ?? []).map(sub => (
             <div
               key={sub.id}
               style={{
-                display:    'flex',
-                alignItems: 'center',
-                gap:        '0.4rem',
-                padding:    '0.35rem 0',
+                display:      'flex',
+                alignItems:   'center',
+                gap:          '0.4rem',
+                padding:      '0.35rem 0',
                 borderBottom: '1px solid var(--border)',
               }}
             >
@@ -1469,7 +1222,6 @@ function TaskListItem({
             </div>
           ))}
 
-          {/* New subtask input */}
           {addingSubTo === task.id ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', paddingTop: '0.4rem' }}>
               <div style={{
@@ -1519,11 +1271,7 @@ function TaskListItem({
               </button>
               <button
                 onClick={onCancelSubtask}
-                style={{
-                  background: 'none', border: 'none',
-                  cursor: 'pointer', color: 'var(--text-muted)',
-                  display: 'flex',
-                }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}
               >
                 <X size={12} />
               </button>
@@ -1553,16 +1301,4 @@ function TaskListItem({
       )}
     </div>
   )
-}
-
-// ─── Defaults ─────────────────────────────────────────────────────────────────
-
-function defaultAiTasks(): string[] {
-  return [
-    'Review and organize your notes from this week',
-    'Set 3 goals for the upcoming week',
-    'Spend 30 minutes on a creative hobby',
-    'Reach out to someone you haven\'t talked to in a while',
-    'Clear your workspace and digital desktop',
-  ]
 }

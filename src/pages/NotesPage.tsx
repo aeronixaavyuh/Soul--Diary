@@ -1,30 +1,30 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
-import { useEntryStore, Entry }  from '@store/useEntryStore'
-import { useAppStore }           from '@store/useAppStore'
+import { useEntryStore, Entry }      from '@store/useEntryStore'
+import { useAppStore }               from '@store/useAppStore'
 import RichEditor, { RichEditorRef } from '@editor/RichEditor'
-import Toolbar                   from '@editor/Toolbar'
-import { Editor }                from '@tiptap/react'
+import Toolbar                       from '@editor/Toolbar'
+import { Editor }                    from '@tiptap/react'
 import {
   Plus, FileText, Heart, Pin, Trash2,
-  Wand2, Loader2, ChevronLeft, Clock,
+  Loader2, ChevronLeft, Clock,
   Tag, X, Check, RefreshCw, Search,
-  Grid3X3, List, Sparkles,
+  Grid3X3, List,
 } from 'lucide-react'
 
 // ─── Note color presets ───────────────────────────────────────────────────────
 
 const NOTE_COLORS = [
-  { value: '#6366f1', label: 'Purple'  },
-  { value: '#3b82f6', label: 'Blue'    },
-  { value: '#14b8a6', label: 'Teal'    },
-  { value: '#22c55e', label: 'Green'   },
-  { value: '#eab308', label: 'Yellow'  },
-  { value: '#f97316', label: 'Orange'  },
-  { value: '#ef4444', label: 'Red'     },
-  { value: '#ec4899', label: 'Pink'    },
-  { value: '#8b5cf6', label: 'Violet'  },
-  { value: '#06b6d4', label: 'Cyan'    },
+  { value: '#6366f1', label: 'Purple' },
+  { value: '#3b82f6', label: 'Blue'   },
+  { value: '#14b8a6', label: 'Teal'   },
+  { value: '#22c55e', label: 'Green'  },
+  { value: '#eab308', label: 'Yellow' },
+  { value: '#f97316', label: 'Orange' },
+  { value: '#ef4444', label: 'Red'    },
+  { value: '#ec4899', label: 'Pink'   },
+  { value: '#8b5cf6', label: 'Violet' },
+  { value: '#06b6d4', label: 'Cyan'   },
 ]
 
 // ─── NotesPage ────────────────────────────────────────────────────────────────
@@ -40,20 +40,16 @@ export default function NotesPage() {
   } = useEntryStore()
 
   const { settings } = useAppStore()
-  const location = useLocation()
+  const location     = useLocation()
 
-  // ── Refs ───────────────────────────────────────────────────────────────────
-  const editorRef  = useRef<RichEditorRef>(null)
-  const titleRef   = useRef<HTMLInputElement>(null)
+  const editorRef = useRef<RichEditorRef>(null)
+  const titleRef  = useRef<HTMLInputElement>(null)
 
-  // ── Local State ────────────────────────────────────────────────────────────
+  // ── State ──────────────────────────────────────────────────────────────────
   const [title,           setTitle]           = useState('')
   const [showList,        setShowList]        = useState(true)
   const [viewMode,        setViewMode]        = useState<'list' | 'grid'>('list')
   const [editorInstance,  setEditorInstance]  = useState<Editor | null>(null)
-  const [aiLoading,       setAiLoading]       = useState(false)
-  const [aiSuggestions,   setAiSuggestions]   = useState<string[]>([])
-  const [showAiPanel,     setShowAiPanel]     = useState(false)
   const [saveStatus,      setSaveStatus]      = useState<'saved' | 'saving' | 'unsaved'>('saved')
   const [searchQuery,     setSearchQuery]     = useState('')
   const [selectedColor,   setSelectedColor]   = useState('#6366f1')
@@ -70,17 +66,15 @@ export default function NotesPage() {
   }, [])
 
   useEffect(() => {
-  const openId = (location.state as any)?.openEntryId
-  if (!openId || entries.length === 0) return
-
-  const entry = entries.find(e => e.id === openId)
-  if (!entry) return
-
-  loadEntry(entry.id).then(() => {
-    setShowList(false)
-    window.history.replaceState({}, '')
-  })
-}, [entries, location.state])
+    const openId = (location.state as any)?.openEntryId
+    if (!openId || entries.length === 0) return
+    const entry = entries.find(e => e.id === openId)
+    if (!entry) return
+    loadEntry(entry.id).then(() => {
+      setShowList(false)
+      window.history.replaceState({}, '')
+    })
+  }, [entries, location.state])
 
   // ── Save status sync ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -96,7 +90,6 @@ export default function NotesPage() {
     setSelectedColor(currentEntry.color ?? '#6366f1')
     setCurrentTags(currentEntry.tags?.map(t => t.id) ?? [])
     setWordCount(currentEntry.word_count ?? 0)
-
     setTimeout(() => {
       if (editorRef.current && currentEntry.content) {
         editorRef.current.setContent(currentEntry.content)
@@ -116,7 +109,7 @@ export default function NotesPage() {
       )
     })
 
-  // ── Create new note ────────────────────────────────────────────────────────
+  // ── New note ───────────────────────────────────────────────────────────────
   const handleNewNote = useCallback(async () => {
     const id = await createEntry({
       type:    'note',
@@ -143,18 +136,13 @@ export default function NotesPage() {
     }
     await loadEntry(entry.id)
     setShowList(false)
-    setShowAiPanel(false)
-    setAiSuggestions([])
   }, [isDirty, currentEntry, title, saveNow, loadEntry])
 
   // ── Editor onChange ────────────────────────────────────────────────────────
   const handleEditorChange = useCallback((json: string, text: string) => {
     if (!currentEntry) return
     scheduleAutoSave(currentEntry.id, {
-      title,
-      content:      json,
-      contentPlain: text,
-      color:        selectedColor,
+      title, content: json, contentPlain: text, color: selectedColor,
     })
   }, [currentEntry, title, selectedColor, scheduleAutoSave])
 
@@ -164,7 +152,7 @@ export default function NotesPage() {
     if (!currentEntry) return
     setDirty(true)
     scheduleAutoSave(currentEntry.id, {
-      title:        val,
+      title: val,
       content:      editorRef.current?.getJSON()
         ? JSON.stringify(editorRef.current.getJSON()) : undefined,
       contentPlain: editorRef.current?.getText(),
@@ -175,8 +163,7 @@ export default function NotesPage() {
   const handleColorChange = useCallback(async (color: string) => {
     setSelectedColor(color)
     setShowColorPicker(false)
-    if (!currentEntry) return
-    await updateEntry(currentEntry.id, { color })
+    if (currentEntry) await updateEntry(currentEntry.id, { color })
   }, [currentEntry, updateEntry])
 
   // ── Manual save ───────────────────────────────────────────────────────────
@@ -193,58 +180,12 @@ export default function NotesPage() {
 
   // ── Ctrl+S ─────────────────────────────────────────────────────────────────
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === 's') {
-        e.preventDefault()
-        handleManualSave()
-      }
+    const h = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === 's') { e.preventDefault(); handleManualSave() }
     }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
   }, [handleManualSave])
-
-  // ── AI Suggestions ─────────────────────────────────────────────────────────
-  const handleGetSuggestions = useCallback(async () => {
-    const text = editorRef.current?.getText() ?? ''
-    setAiLoading(true)
-    setShowAiPanel(true)
-
-    try {
-      const res = await window.electronAPI.ai.suggestions(text, 'improvement')
-      if (res?.success && res.data?.suggestions?.length) {
-        setAiSuggestions(res.data.suggestions)
-      } else {
-        setAiSuggestions([
-          'Add more detail to your key points.',
-          'Consider adding an example or case study.',
-          'Summarize the main takeaway at the end.',
-        ])
-      }
-    } catch {
-      setAiSuggestions([
-        'Add more detail to your key points.',
-        'Break this into smaller sections.',
-        'Add a summary at the end.',
-      ])
-    } finally {
-      setAiLoading(false)
-    }
-  }, [])
-
-  // ── Apply suggestion ──────────────────────────────────────────────────────
-  const handleApplySuggestion = useCallback((s: string) => {
-    if (!editorRef.current) return
-    const existingJSON = editorRef.current.getJSON() as any
-    const newContent = JSON.stringify({
-      type:    'doc',
-      content: [
-        ...(existingJSON.content ?? []),
-        { type: 'paragraph', content: [{ type: 'text', text: s }] },
-      ],
-    })
-    handleEditorChange(newContent, (editorRef.current.getText() ?? '') + '\n' + s)
-    setShowAiPanel(false)
-  }, [handleEditorChange])
 
   // ── Add tag ────────────────────────────────────────────────────────────────
   const handleAddTag = useCallback(async () => {
@@ -259,7 +200,7 @@ export default function NotesPage() {
     setShowTagInput(false)
   }, [newTagName, currentEntry, currentTags, createTag, updateEntry])
 
-  // ── Remove tag ────────────────────────────────────────────────────────────
+  // ── Remove tag ─────────────────────────────────────────────────────────────
   const handleRemoveTag = useCallback(async (tagId: string) => {
     if (!currentEntry) return
     const updated = currentTags.filter(t => t !== tagId)
@@ -269,16 +210,15 @@ export default function NotesPage() {
 
   // ── Insert image ──────────────────────────────────────────────────────────
   const handleInsertImage = useCallback(() => {
-    const input = document.createElement('input')
-    input.type   = 'file'
-    input.accept = 'image/*'
+    const input    = document.createElement('input')
+    input.type     = 'file'
+    input.accept   = 'image/*'
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (!file) return
-      const reader = new FileReader()
-      reader.onload = () => {
+      const reader  = new FileReader()
+      reader.onload = () =>
         editorRef.current?.insertImage(reader.result as string, file.name)
-      }
       reader.readAsDataURL(file)
     }
     input.click()
@@ -297,17 +237,15 @@ export default function NotesPage() {
   // ── Format time ───────────────────────────────────────────────────────────
   const formatTime = (iso: string) => {
     try {
-      const d = new Date(iso)
-      const now = new Date()
-      const diff = now.getTime() - d.getTime()
-      const mins  = Math.floor(diff / 60000)
-      const hours = Math.floor(diff / 3600000)
-      const days  = Math.floor(diff / 86400000)
-
-      if (mins  < 1)   return 'Just now'
-      if (mins  < 60)  return `${mins}m ago`
-      if (hours < 24)  return `${hours}h ago`
-      if (days  < 7)   return `${days}d ago`
+      const d    = new Date(iso)
+      const diff = Date.now() - d.getTime()
+      const mins = Math.floor(diff / 60000)
+      const hrs  = Math.floor(diff / 3600000)
+      const days = Math.floor(diff / 86400000)
+      if (mins  < 1)  return 'Just now'
+      if (mins  < 60) return `${mins}m ago`
+      if (hrs   < 24) return `${hrs}h ago`
+      if (days  < 7)  return `${days}d ago`
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     } catch { return '' }
   }
@@ -322,9 +260,7 @@ export default function NotesPage() {
       background: 'var(--bg-primary)',
     }}>
 
-      {/* ══════════════════════════════════════════════════════════════════
-          LEFT PANEL — Notes List
-      ══════════════════════════════════════════════════════════════════ */}
+      {/* ══ LEFT PANEL ════════════════════════════════════════════════════ */}
       <div style={{
         width:         showList ? '280px' : '0px',
         minWidth:      showList ? '280px' : '0px',
@@ -336,11 +272,11 @@ export default function NotesPage() {
         background:    'var(--bg-secondary)',
       }}>
 
-        {/* List header */}
+        {/* Header */}
         <div style={{
-          padding:        '1rem 1rem 0.75rem',
-          borderBottom:   '1px solid var(--border)',
-          flexShrink:     0,
+          padding:      '1rem 1rem 0.75rem',
+          borderBottom: '1px solid var(--border)',
+          flexShrink:   0,
         }}>
           <div style={{
             display:        'flex',
@@ -371,7 +307,6 @@ export default function NotesPage() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              {/* View toggle */}
               <button
                 onClick={() => setViewMode(v => v === 'list' ? 'grid' : 'list')}
                 title={viewMode === 'list' ? 'Grid view' : 'List view'}
@@ -391,7 +326,6 @@ export default function NotesPage() {
                 {viewMode === 'list' ? <Grid3X3 size={13} /> : <List size={13} />}
               </button>
 
-              {/* New note */}
               <button
                 onClick={handleNewNote}
                 title="New note"
@@ -453,11 +387,7 @@ export default function NotesPage() {
         </div>
 
         {/* Notes list */}
-        <div style={{
-          flex:      1,
-          overflowY: 'auto',
-          padding:   '0.5rem',
-        }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
           {filteredNotes.length === 0 ? (
             <div style={{
               display:        'flex',
@@ -493,8 +423,9 @@ export default function NotesPage() {
                 </button>
               )}
             </div>
+
           ) : viewMode === 'grid' ? (
-            // ── Grid View ────────────────────────────────────────────────────
+            // Grid view
             <div style={{
               display:             'grid',
               gridTemplateColumns: 'repeat(2, 1fr)',
@@ -527,35 +458,35 @@ export default function NotesPage() {
                     }}
                   >
                     <div style={{
-                      fontWeight:   600,
-                      fontSize:     '0.78rem',
-                      color:        'var(--text-primary)',
-                      marginBottom: '0.3rem',
-                      overflow:     'hidden',
-                      display:      '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
+                      fontWeight:         600,
+                      fontSize:           '0.78rem',
+                      color:              'var(--text-primary)',
+                      marginBottom:       '0.3rem',
+                      overflow:           'hidden',
+                      display:            '-webkit-box',
+                      WebkitLineClamp:    2,
+                      WebkitBoxOrient:    'vertical',
                     }}>
                       {note.title || 'Untitled'}
                     </div>
                     <div style={{
-                      fontSize:       '0.7rem',
-                      color:          'var(--text-muted)',
-                      overflow:       'hidden',
-                      display:        '-webkit-box',
-                      WebkitLineClamp: 3,
-                      WebkitBoxOrient: 'vertical',
-                      lineHeight:     1.5,
+                      fontSize:           '0.7rem',
+                      color:              'var(--text-muted)',
+                      overflow:           'hidden',
+                      display:            '-webkit-box',
+                      WebkitLineClamp:    3,
+                      WebkitBoxOrient:    'vertical',
+                      lineHeight:         1.5,
                     }}>
                       {note.content_plain || 'Empty note'}
                     </div>
                     <div style={{
-                      marginTop: '0.5rem',
-                      fontSize:  '0.63rem',
-                      color:     'var(--text-muted)',
-                      display:   'flex',
-                      alignItems:'center',
-                      gap:       '3px',
+                      marginTop:  '0.5rem',
+                      fontSize:   '0.63rem',
+                      color:      'var(--text-muted)',
+                      display:    'flex',
+                      alignItems: 'center',
+                      gap:        '3px',
                     }}>
                       <Clock size={9} />
                       {formatTime(note.updated_at)}
@@ -564,8 +495,9 @@ export default function NotesPage() {
                 )
               })}
             </div>
+
           ) : (
-            // ── List View ────────────────────────────────────────────────────
+            // List view
             filteredNotes.map(note => {
               const isSelected = currentEntry?.id === note.id
               return (
@@ -616,8 +548,8 @@ export default function NotesPage() {
                       alignItems: 'center',
                       gap:        '3px',
                     }}>
-                      {note.is_pinned  ? <Pin   size={9} style={{ color: '#fbbf24' }} /> : null}
-                      {note.is_favorite? <Heart size={9} style={{ color: '#f472b6', fill: '#f472b6' }} /> : null}
+                      {note.is_pinned   ? <Pin   size={9} style={{ color: '#fbbf24' }} /> : null}
+                      {note.is_favorite ? <Heart size={9} style={{ color: '#f472b6', fill: '#f472b6' }} /> : null}
                       <Clock size={9} />
                       {formatTime(note.updated_at)}
                     </div>
@@ -652,9 +584,7 @@ export default function NotesPage() {
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════════════════
-          RIGHT PANEL — Editor
-      ══════════════════════════════════════════════════════════════════ */}
+      {/* ══ RIGHT PANEL ═══════════════════════════════════════════════════ */}
       <div style={{
         flex:          1,
         display:       'flex',
@@ -662,10 +592,9 @@ export default function NotesPage() {
         overflow:      'hidden',
         minWidth:      0,
       }}>
-
         {currentEntry ? (
           <>
-            {/* ── Top Bar ───────────────────────────────────────────────── */}
+            {/* Top Bar */}
             <div style={{
               display:        'flex',
               alignItems:     'center',
@@ -700,7 +629,7 @@ export default function NotesPage() {
                   }} />
                 </button>
 
-                {/* Color dot */}
+                {/* Color picker */}
                 <div style={{ position: 'relative' }}>
                   <button
                     onClick={() => setShowColorPicker(v => !v)}
@@ -749,13 +678,11 @@ export default function NotesPage() {
                               borderRadius: '50%',
                               background:   c.value,
                               border:       selectedColor === c.value
-                                ? '2px solid white'
-                                : '1px solid transparent',
+                                ? '2px solid white' : '1px solid transparent',
                               cursor:       'pointer',
                               transition:   'transform 0.1s',
                               boxShadow:    selectedColor === c.value
-                                ? `0 0 0 2px ${c.value}`
-                                : 'none',
+                                ? `0 0 0 2px ${c.value}` : 'none',
                             }}
                             onMouseEnter={e =>
                               (e.currentTarget as HTMLElement).style.transform = 'scale(1.2)'
@@ -786,32 +713,6 @@ export default function NotesPage() {
 
               {/* Right actions */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
-
-                {/* AI improve */}
-                <button
-                  onClick={handleGetSuggestions}
-                  disabled={aiLoading}
-                  style={{
-                    display:     'flex',
-                    alignItems:  'center',
-                    gap:         '4px',
-                    padding:     '4px 10px',
-                    borderRadius:'8px',
-                    border:      '1px solid var(--border)',
-                    background:  showAiPanel ? 'rgba(99,102,241,0.1)' : 'var(--bg-tertiary)',
-                    color:       showAiPanel ? 'var(--accent)' : 'var(--text-secondary)',
-                    fontSize:    '0.75rem',
-                    cursor:      aiLoading ? 'wait' : 'pointer',
-                    fontFamily:  'inherit',
-                    transition:  'all 0.15s',
-                  }}
-                >
-                  {aiLoading
-                    ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
-                    : <Wand2 size={12} />
-                  }
-                  Improve
-                </button>
 
                 {/* Favorite */}
                 <button
@@ -869,7 +770,7 @@ export default function NotesPage() {
                   {saveStatus === 'unsaved' && <RefreshCw size={11} />}
                   <span>
                     {saveStatus === 'saving' ? 'Saving...'
-                     : saveStatus === 'saved' ? 'Saved' : 'Unsaved'}
+                      : saveStatus === 'saved' ? 'Saved' : 'Unsaved'}
                   </span>
                 </div>
 
@@ -890,12 +791,12 @@ export default function NotesPage() {
                     transition:     'all 0.15s',
                   }}
                   onMouseEnter={e => {
-                    (e.currentTarget as HTMLElement).style.color      = '#ef4444'
-                    ;(e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.1)'
+                    (e.currentTarget as HTMLElement).style.color       = '#ef4444'
+                    ;(e.currentTarget as HTMLElement).style.background  = 'rgba(239,68,68,0.1)'
                   }}
                   onMouseLeave={e => {
-                    (e.currentTarget as HTMLElement).style.color      = 'var(--text-muted)'
-                    ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+                    (e.currentTarget as HTMLElement).style.color       = 'var(--text-muted)'
+                    ;(e.currentTarget as HTMLElement).style.background  = 'transparent'
                   }}
                 >
                   <Trash2 size={14} />
@@ -903,100 +804,22 @@ export default function NotesPage() {
               </div>
             </div>
 
-            {/* ── Toolbar ───────────────────────────────────────────────── */}
+            {/* Toolbar */}
             <Toolbar editor={editorInstance} onInsertImage={handleInsertImage} />
 
-            {/* ── AI Panel ─────────────────────────────────────────────── */}
-            {showAiPanel && (
-              <div style={{
-                padding:      '0.75rem 1.25rem',
-                background:   'rgba(99,102,241,0.06)',
-                borderBottom: '1px solid rgba(99,102,241,0.15)',
-                flexShrink:   0,
-              }}>
-                <div style={{
-                  display:        'flex',
-                  alignItems:     'center',
-                  justifyContent: 'space-between',
-                  marginBottom:   '0.5rem',
-                }}>
-                  <div style={{
-                    display:    'flex',
-                    alignItems: 'center',
-                    gap:        '0.4rem',
-                    fontSize:   '0.75rem',
-                    fontWeight: 600,
-                    color:      'var(--accent)',
-                  }}>
-                    <Sparkles size={12} />
-                    AI Improvement Suggestions
-                  </div>
-                  <button
-                    onClick={() => setShowAiPanel(false)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}
-                  >
-                    <X size={13} />
-                  </button>
-                </div>
-
-                {aiLoading ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                    <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
-                    Analyzing your note...
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                    {aiSuggestions.map((s, i) => (
-                      <button
-                        key={i}
-                        onClick={() => handleApplySuggestion(s)}
-                        style={{
-                          display:    'flex',
-                          alignItems: 'center',
-                          gap:        '0.5rem',
-                          padding:    '0.4rem 0.6rem',
-                          borderRadius:'8px',
-                          border:     '1px solid rgba(99,102,241,0.2)',
-                          background: 'var(--bg-card)',
-                          cursor:     'pointer',
-                          fontSize:   '0.8rem',
-                          color:      'var(--text-primary)',
-                          fontFamily: 'inherit',
-                          textAlign:  'left',
-                          transition: 'all 0.15s',
-                        }}
-                        onMouseEnter={e => {
-                          (e.currentTarget as HTMLElement).style.background  = 'rgba(99,102,241,0.1)'
-                          ;(e.currentTarget as HTMLElement).style.borderColor = 'rgba(99,102,241,0.4)'
-                        }}
-                        onMouseLeave={e => {
-                          (e.currentTarget as HTMLElement).style.background  = 'var(--bg-card)'
-                          ;(e.currentTarget as HTMLElement).style.borderColor = 'rgba(99,102,241,0.2)'
-                        }}
-                      >
-                        <Plus size={11} style={{ color: 'var(--accent)', flexShrink: 0 }} />
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ── Tags Bar ──────────────────────────────────────────────── */}
+            {/* Tags Bar */}
             <div style={{
-              display:     'flex',
-              alignItems:  'center',
-              gap:         '0.4rem',
-              padding:     '0.5rem 1.5rem',
-              borderBottom:'1px solid var(--border)',
-              flexShrink:  0,
-              flexWrap:    'wrap',
-              background:  'var(--bg-secondary)',
+              display:      'flex',
+              alignItems:   'center',
+              gap:          '0.4rem',
+              padding:      '0.5rem 1.5rem',
+              borderBottom: '1px solid var(--border)',
+              flexShrink:   0,
+              flexWrap:     'wrap',
+              background:   'var(--bg-secondary)',
             }}>
               <Tag size={12} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
 
-              {/* Current tags */}
               {currentEntry.tags?.map(tag => (
                 <div key={tag.id} style={{
                   display:      'flex',
@@ -1020,7 +843,6 @@ export default function NotesPage() {
                 </div>
               ))}
 
-              {/* Add tag */}
               {showTagInput ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <input
@@ -1029,7 +851,7 @@ export default function NotesPage() {
                     value={newTagName}
                     onChange={e => setNewTagName(e.target.value)}
                     onKeyDown={e => {
-                      if (e.key === 'Enter') handleAddTag()
+                      if (e.key === 'Enter')  handleAddTag()
                       if (e.key === 'Escape') { setShowTagInput(false); setNewTagName('') }
                     }}
                     placeholder="Tag name..."
@@ -1046,10 +868,16 @@ export default function NotesPage() {
                       width:        '90px',
                     }}
                   />
-                  <button onClick={handleAddTag} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', display: 'flex' }}>
+                  <button
+                    onClick={handleAddTag}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', display: 'flex' }}
+                  >
                     <Check size={12} />
                   </button>
-                  <button onClick={() => { setShowTagInput(false); setNewTagName('') }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
+                  <button
+                    onClick={() => { setShowTagInput(false); setNewTagName('') }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}
+                  >
                     <X size={12} />
                   </button>
                 </div>
@@ -1076,7 +904,7 @@ export default function NotesPage() {
               )}
             </div>
 
-            {/* ── Title Input ───────────────────────────────────────────── */}
+            {/* Title */}
             <div style={{ padding: '1.5rem 2rem 0.5rem', flexShrink: 0 }}>
               <input
                 ref={titleRef}
@@ -1098,7 +926,7 @@ export default function NotesPage() {
               />
             </div>
 
-            {/* ── Editor ────────────────────────────────────────────────── */}
+            {/* Editor */}
             <div style={{
               flex:          1,
               overflow:      'hidden',
@@ -1111,7 +939,7 @@ export default function NotesPage() {
                 initialContent={currentEntry.content}
                 placeholder="Start writing your note..."
                 onChange={handleEditorChange}
-                onWordCount={(w, c) => setWordCount(w)}
+                onWordCount={(w) => setWordCount(w)}
                 onEditorReady={(ed) => setEditorInstance(ed)}
                 autoFocus={false}
                 minHeight="100%"
@@ -1122,15 +950,15 @@ export default function NotesPage() {
             </div>
           </>
         ) : (
-          // ── No note selected ──────────────────────────────────────────
+          // Empty state
           <div style={{
-            flex:            1,
-            display:         'flex',
-            flexDirection:   'column',
-            alignItems:      'center',
-            justifyContent:  'center',
-            gap:             '1rem',
-            color:           'var(--text-muted)',
+            flex:           1,
+            display:        'flex',
+            flexDirection:  'column',
+            alignItems:     'center',
+            justifyContent: 'center',
+            gap:            '1rem',
+            color:          'var(--text-muted)',
           }}>
             <div style={{
               width:          '80px',

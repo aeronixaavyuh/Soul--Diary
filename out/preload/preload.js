@@ -44,35 +44,6 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
     all: (sql, params) => electron.ipcRenderer.invoke("db:all", sql, params ?? [])
   },
   // ══════════════════════════════════════════════════════════════════════════
-  //  AI  (Ollama local AI — all offline)
-  // ══════════════════════════════════════════════════════════════════════════
-  ai: {
-    // Availability
-    isAvailable: () => electron.ipcRenderer.invoke("ai:isAvailable"),
-    // Model management
-    models: () => electron.ipcRenderer.invoke("ai:models"),
-    getModel: () => electron.ipcRenderer.invoke("ai:getModel"),
-    setModel: (name) => electron.ipcRenderer.invoke("ai:setModel", name),
-    pullModel: (name) => electron.ipcRenderer.invoke("ai:pullModel", name),
-    // Core generation
-    query: (prompt, ctx) => electron.ipcRenderer.invoke("ai:query", prompt, ctx),
-    // Diary features
-    detectMood: (text) => electron.ipcRenderer.invoke("ai:detectMood", text),
-    summarize: (text, style) => electron.ipcRenderer.invoke("ai:summarize", text, style ?? "brief"),
-    autoTitle: (text) => electron.ipcRenderer.invoke("ai:autoTitle", text),
-    // Writing help
-    suggestions: (text, type) => electron.ipcRenderer.invoke("ai:suggestions", text, type ?? "continuation"),
-    predictWords: (text, count) => electron.ipcRenderer.invoke("ai:predictWords", text, count ?? 3),
-    // Ideas
-    expandIdea: (idea) => electron.ipcRenderer.invoke("ai:expandIdea", idea),
-    // Prompts
-    dailyPrompts: (ctx) => electron.ipcRenderer.invoke("ai:dailyPrompts", ctx),
-    // Analysis
-    analyzeStyle: (text) => electron.ipcRenderer.invoke("ai:analyzeStyle", text),
-    extractGratitude: (text) => electron.ipcRenderer.invoke("ai:extractGratitude", text),
-    batchMood: (entries) => electron.ipcRenderer.invoke("ai:batchMood", entries)
-  },
-  // ══════════════════════════════════════════════════════════════════════════
   //  FILE SYSTEM
   // ══════════════════════════════════════════════════════════════════════════
   fs: {

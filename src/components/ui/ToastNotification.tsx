@@ -95,7 +95,7 @@ export const toast = {
   update: (id: string, partial: Partial<Omit<Toast, 'id'>>) =>
     useToastStore.getState().update(id, partial),
 
-  promise: async <T>(
+  promise: async <T,>(
     promise:  Promise<T>,
     messages: { loading: string; success: string; error: string }
   ): Promise<T> => {
